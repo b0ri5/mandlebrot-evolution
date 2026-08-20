@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complex Function Vector Mapping: f(z) - Dual Plane Visualizer</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+
+  <!-- Three.js and OrbitControls -->
+  <script src="three.min.js"></script>
+  <script>if (typeof THREE === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+  <script src="OrbitControls.js"></script>
+  <script>if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');</script>
+
+  <style>
+    :root {
+      --bg-dark: #0a0c10;
+      --panel-bg: rgba(18, 22, 31, 0.82);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-purple: #7f00ff;
+      --accent-pink: #ff007f;
+      --accent-gold: #ffd700;
+      --accent-emerald: #10b981;
+      --text-main: #f0f4f8;
+      --text-muted: #94a3b8;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* Top Navigation Header */
+    .top-nav {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      padding: 6px 10px;
+      border-radius: 30px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    }
+
+    .nav-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.3), rgba(127, 0, 255, 0.4));
+      border: 1px solid rgba(0, 242, 254, 0.5);
+      box-shadow: 0 0 16px rgba(0, 242, 254, 0.25);
+    }
+
+    /* App Title Badge (Top-Left) */
+    .header-bar {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .app-title-badge {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      padding: 10px 18px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+    }
+
+    /* Floating Formula & Control Bar (Top-Center below Nav) */
+    .formula-bar {
+      position: absolute;
+      top: 74px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      padding: 8px 18px;
+      border-radius: 18px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+    }
+
+    .formula-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+    }
+
+    .formula-label {
+      color: var(--accent-cyan);
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    .formula-input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(0, 242, 254, 0.35);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      width: 220px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .formula-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
+    }
+
+    .preset-chips {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .chip-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .chip-btn:hover {
+      color: var(--accent-cyan);
+      border-color: rgba(0, 242, 254, 0.4);
+      background: rgba(0, 242, 254, 0.1);
+    }
+
+    .btn-settings {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(127, 0, 255, 0.3));
+      border: 1px solid rgba(0, 242, 254, 0.4);
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-settings:hover {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.35), rgba(127, 0, 255, 0.5));
+      box-shadow: 0 0 14px rgba(0, 242, 254, 0.3);
+    }
+
+    /* Floating Sub-Region Selection Bar */
+    .region-bar {
+      position: absolute;
+      top: 130px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 6px 14px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .region-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .region-chips {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .region-chip-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .region-chip-btn:hover {
+      color: #fff;
+      border-color: rgba(0, 242, 254, 0.4);
+      background: rgba(0, 242, 254, 0.1);
+    }
+
+    .region-chip-btn.active {
+      color: #050508;
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .clear-selection-btn {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      color: #fda4af;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .clear-selection-btn:hover {
+      background: rgba(244, 63, 94, 0.3);
+      color: #fff;
+    }
+
+    /* Floating Left HUD: Grid & Mapping Stats */
+    .hud-card {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      width: 280px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+    }
+
+    .hud-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+    }
+
+    .hud-val {
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    /* Floating Point Hover Inspector */
+    #hover-inspector {
+      position: absolute;
+      bottom: 24px;
+      left: 320px;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 242, 254, 0.4);
+      border-radius: 16px;
+      padding: 14px 18px;
+      min-width: 290px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      display: none;
+      pointer-events: auto;
+    }
+
+    /* Settings Modal Dialog */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-window {
+      background: rgba(18, 22, 31, 0.95);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      width: 440px;
+      max-width: 90vw;
+      padding: 24px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .close-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .val-badge {
+      background: rgba(0, 242, 254, 0.15);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      color: var(--accent-cyan);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    select {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 7px 10px;
+      border-radius: 8px;
+      outline: none;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider-toggle {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 22px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .slider-toggle:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider-toggle {
+      background-color: var(--accent-cyan);
+    }
+
+    input:checked+.slider-toggle:before {
+      transform: translateX(18px);
+      background-color: #0a0c10;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Navigation Tabs -->
+  <div class="top-nav">
+    <a href="index.html" class="nav-tab">
+      <span>⛰️ 3D Mandelbrot Sculpture</span>
+    </a>
+    <a href="complex-mapping.html" class="nav-tab active">
+      <span>📐 Complex Vector Mapping: f(z)</span>
+    </a>
+  </div>
+
+  <!-- Top-Left App Title -->
+  <div class="header-bar">
+    <div class="app-title-badge">
+      <div class="logo-icon">f(z)</div>
+      <div>
+        <h1 style="font-size:0.95rem; font-weight:700; letter-spacing:-0.01em;">Dual-Plane Complex Vector Mapping</h1>
+        <p style="font-size:0.75rem; color:var(--text-muted);">Interactive polynomial transformation field</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Formula Bar -->
+  <div class="formula-bar">
+    <div class="formula-input-wrap">
+      <span class="formula-label">f(z) =</span>
+      <input type="text" id="funcInput" class="formula-input" value="z^2" spellcheck="false" placeholder="e.g. z^2 - 1">
+    </div>
+
+    <!-- Quick Preset Formula Chips -->
+    <div class="preset-chips">
+      <button class="chip-btn" data-poly="z^2">z²</button>
+      <button class="chip-btn" data-poly="z^3 - z">z³ - z</button>
+      <button class="chip-btn" data-poly="z^2 - 1">z² - 1</button>
+      <button class="chip-btn" data-poly="z^3 - 1">z³ - 1</button>
+      <button class="chip-btn" data-poly="z^4 - 1">z⁴ - 1</button>
+      <button class="chip-btn" data-poly="0.5*z^2 - 2*z + 1.5">0.5z²-2z+1.5</button>
+    </div>
+
+    <button id="openSettingsBtn" class="btn-settings">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <span>Settings</span>
+    </button>
+  </div>
+
+  <!-- Floating Sub-Region Selection Bar -->
+  <div class="region-bar">
+    <div class="region-title">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+      <span>Sub-Region:</span>
+    </div>
+    <div class="region-chips">
+      <button class="region-chip-btn active" data-region="all">All Points</button>
+      <button class="region-chip-btn" data-region="unit-disc">Unit Disc (|z| ≤ 1)</button>
+      <button class="region-chip-btn" data-region="unit-square">Unit Square ([-1,1]²)</button>
+      <button class="region-chip-btn" data-region="real-axis">Real Axis (Im=0)</button>
+      <button class="region-chip-btn" data-region="imag-axis">Imag Axis (Re=0)</button>
+      <button class="region-chip-btn" data-region="quad1">Quad I (+,+)</button>
+      <button class="region-chip-btn" data-region="quad2">Quad II (-,+)</button>
+      <button class="region-chip-btn" data-region="quad3">Quad III (-,-)</button>
+      <button class="region-chip-btn" data-region="quad4">Quad IV (+,-)</button>
+    </div>
+    <button id="clearSelectionBtn" class="clear-selection-btn" style="display:none;">
+      <span>Show All Points ✕</span>
+    </button>
+  </div>
+
+  <!-- HUD Card (Bottom Left) -->
+  <div class="hud-card">
+    <div class="hud-title">
+      <span>Vector Field Stats</span>
+      <span id="gridPointCountBadge" class="val-badge">49 Points (7²)</span>
+    </div>
+    <div class="hud-row">
+      <span>Domain (Left):</span>
+      <span class="hud-val">[-3, 3] × [-3i, 3i]</span>
+    </div>
+    <div class="hud-row">
+      <span>Output Grid (Right):</span>
+      <span class="hud-val">[-3, 3] (Ext 4×4)</span>
+    </div>
+    <div class="hud-row">
+      <span>Plane Separation:</span>
+      <span id="hudSeparation" class="hud-val">8.0 units</span>
+    </div>
+    <div class="hud-row">
+      <span>Points in 3×3 Box:</span>
+      <span id="hudInBox" class="hud-val">--</span>
+    </div>
+    <div class="hud-row">
+      <span>Escaped into Space:</span>
+      <span id="hudEscaped" class="hud-val">--</span>
+    </div>
+  </div>
+
+  <!-- Interactive Hover & Click Inspector -->
+  <div id="hover-inspector">
+    <div style="font-size:0.75rem; font-weight:700; color:var(--accent-cyan); text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between;">
+      <span>Point Transformation</span>
+      <button id="unlockPointBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem;">Clear ✕</button>
+    </div>
+    <div style="font-family:var(--font-mono); font-size:0.85rem; line-height:1.5;">
+      <div>z = <span id="inspZ" style="color:var(--accent-gold);">--</span></div>
+      <div>f(z) = <span id="inspFz" style="color:var(--accent-cyan);">--</span></div>
+      <div style="color:var(--text-muted); font-size:0.75rem; margin-top:4px;">
+        |w| = <span id="inspMag" style="color:#fff;">--</span> &nbsp;|&nbsp; arg(w) = <span id="inspPhase" style="color:#fff;">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal Dialog -->
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span>Vector Field & Grid Settings</span>
+        </div>
+        <button id="closeSettingsBtn" class="close-btn">✕</button>
+      </div>
+
+      <!-- Distance Between Grids -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Distance Between Grids (D)</span>
+          <span id="distVal" class="val-badge">8.0</span>
+        </div>
+        <input type="range" id="distInput" min="2.0" max="25.0" step="0.5" value="8.0">
+      </div>
+
+      <!-- Square Numbers of Points Slider (Up to 40x40 = 1600 Points) -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Square Number of Points (N²)</span>
+          <span id="ptsSquareVal" class="val-badge">49 Points (7 × 7)</span>
+        </div>
+        <input type="range" id="ptsSquareInput" min="1" max="40" step="1" value="7">
+      </div>
+
+      <!-- Input Plane Point Size & Opacity -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Input Point Size (Radius)</span>
+          <span id="inputPtRadiusVal" class="val-badge">0.045</span>
+        </div>
+        <input type="range" id="inputPtRadiusInput" min="0.005" max="0.150" step="0.005" value="0.045">
+      </div>
+
+      <div class="control-group">
+        <div class="label-row">
+          <span>Input Point Opacity</span>
+          <span id="inputPtOpacityVal" class="val-badge">1.00</span>
+        </div>
+        <input type="range" id="inputPtOpacityInput" min="0.05" max="1.0" step="0.05" value="1.00">
+      </div>
+
+      <!-- Output Plane Point Size & Opacity -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Output Point Size (Radius)</span>
+          <span id="outputPtRadiusVal" class="val-badge">0.040</span>
+        </div>
+        <input type="range" id="outputPtRadiusInput" min="0.005" max="0.150" step="0.005" value="0.040">
+      </div>
+
+      <div class="control-group">
+        <div class="label-row">
+          <span>Output Point Opacity</span>
+          <span id="outputPtOpacityVal" class="val-badge">0.85</span>
+        </div>
+        <input type="range" id="outputPtOpacityInput" min="0.05" max="1.0" step="0.05" value="0.85">
+      </div>
+
+      <!-- Arrow Shaft Opacity -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Arrow Shaft Opacity</span>
+          <span id="shaftOpacityVal" class="val-badge">0.65</span>
+        </div>
+        <input type="range" id="shaftOpacityInput" min="0.05" max="1.0" step="0.05" value="0.65">
+      </div>
+
+      <!-- Arrowhead Opacity -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Arrowhead Opacity</span>
+          <span id="headOpacityVal" class="val-badge">0.85</span>
+        </div>
+        <input type="range" id="headOpacityInput" min="0.10" max="1.0" step="0.05" value="0.85">
+      </div>
+
+      <!-- Arrow Shaft Diameter / Thickness -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Arrow Shaft Diameter</span>
+          <span id="shaftRadiusVal" class="val-badge">0.020</span>
+        </div>
+        <input type="range" id="shaftRadiusInput" min="0.005" max="0.080" step="0.005" value="0.020">
+      </div>
+
+      <!-- Arrowhead Diameter / Radius -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Arrowhead Diameter</span>
+          <span id="headRadiusVal" class="val-badge">0.060</span>
+        </div>
+        <input type="range" id="headRadiusInput" min="0.020" max="0.160" step="0.005" value="0.060">
+      </div>
+
+      <!-- Color Theme -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Arrow Coloring Mode</span>
+        </div>
+        <select id="colorModeSelect">
+          <option value="phase" selected>Phase Argument arg(w) (HSV Rainbow)</option>
+          <option value="magnitude">Magnitude |w| (Magma Heatmap)</option>
+          <option value="gradient">Source z to Target w Gradient</option>
+          <option value="cyan">Monochrome Neon Cyan</option>
+        </select>
+      </div>
+
+      <!-- Checkboxes -->
+      <div class="checkbox-row">
+        <span>Show Ghost 4×4 Output Outer Box</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="showGhostToggle" checked>
+          <span class="slider-toggle"></span>
+        </label>
+      </div>
+
+      <div class="checkbox-row">
+        <span>Show Target Spheres on Output Plane</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="showTargetSpheresToggle" checked>
+          <span class="slider-toggle"></span>
+        </label>
+      </div>
+
+      <div style="margin-top:20px; display:flex; gap:10px;">
+        <button id="resetCamBtn" style="flex:1; background:rgba(255,255,255,0.08); border:1px solid var(--panel-border); color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:0.85rem;">Reset Camera</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Application Logic -->
+  <script>
+    // --- 1. COMPLEX POLYNOMIAL PARSER ENGINE ---
+    class Complex {
+      constructor(re = 0, im = 0) {
+        this.re = re;
+        this.im = im;
+      }
+      add(c) { return new Complex(this.re + c.re, this.im + c.im); }
+      sub(c) { return new Complex(this.re - c.re, this.im - c.im); }
+      mul(c) {
+        return new Complex(
+          this.re * c.re - this.im * c.im,
+          this.re * c.im + this.im * c.re
+        );
+      }
+      scale(s) { return new Complex(this.re * s, this.im * s); }
+      pow(n) {
+        if (n === 0) return new Complex(1, 0);
+        if (n === 1) return new Complex(this.re, this.im);
+        let r = this;
+        for (let i = 1; i < n; i++) r = r.mul(this);
+        return r;
+      }
+      mag() { return Math.sqrt(this.re * this.re + this.im * this.im); }
+      arg() { return Math.atan2(this.im, this.re); }
+    }
+
+    // Parses polynomial strings like "z^2", "z**2", "z^3 - z + 1", "0.5*z^2 - 2*z + 1.5"
+    function parseAndEvaluatePoly(exprStr, z) {
+      try {
+        let clean = exprStr.trim();
+        // Replace z^n or z**n with power operations
+        clean = clean.replace(/z\s*\^\s*(\d+)/g, 'pow(z, $1)');
+        clean = clean.replace(/z\s*\*\*\s*(\d+)/g, 'pow(z, $1)');
+        clean = clean.replace(/(\d+)\s*\*?\s*z/g, '$1 * z');
+        clean = clean.replace(/(\d+\.\d+)\s*\*?\s*z/g, '$1 * z');
+
+        // Evaluate using our analytical AST or tokenized complex evaluator
+        return evaluateComplexExpr(exprStr, z);
+      } catch (err) {
+        // Fallback default: z^2
+        return z.mul(z);
+      }
+    }
+
+    function evaluateComplexExpr(expr, z) {
+      // Normalize tokens: separate +/- signs
+      let s = expr.replace(/\s+/g, '').replace(/-/g, '+-');
+      if (s.startsWith('+')) s = s.substring(1);
+      const terms = s.split('+').filter(t => t.length > 0);
+
+      let result = new Complex(0, 0);
+
+      for (let term of terms) {
+        let sign = 1;
+        if (term.startsWith('-')) {
+          sign = -1;
+          term = term.substring(1);
+        }
+
+        let coeff = 1.0;
+        let power = 0;
+
+        if (term.includes('z')) {
+          const parts = term.split('z');
+          // Coefficient
+          let cStr = parts[0].replace('*', '');
+          if (cStr === '' || cStr === '+') coeff = 1.0;
+          else if (cStr === '-') coeff = -1.0;
+          else coeff = parseFloat(cStr);
+
+          // Power
+          let pStr = parts[1];
+          if (pStr === '') {
+            power = 1;
+          } else if (pStr.startsWith('^') || pStr.startsWith('**')) {
+            power = parseInt(pStr.replace(/^\^|\*\*/, ''));
+          } else {
+            power = 1;
+          }
+        } else {
+          // Constant term
+          coeff = parseFloat(term);
+          power = 0;
+        }
+
+        if (isNaN(coeff)) coeff = 0;
+        if (isNaN(power)) power = 0;
+
+        let termVal = (power === 0) ? new Complex(coeff * sign, 0) : z.pow(power).scale(coeff * sign);
+        result = result.add(termVal);
+      }
+
+      return result;
+    }
+
+    // --- 2. THREE.JS SCENE SETUP ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0c10);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const initialCamPos = new THREE.Vector3(0, 6, 18);
+    camera.position.copy(initialCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI - 0.05;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0x00f2fe, 0.8);
+    dirLight1.position.set(10, 20, 15);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0xff007f, 0.6);
+    dirLight2.position.set(-10, -10, -15);
+    scene.add(dirLight2);
+
+    const pointLight = new THREE.PointLight(0xffffff, 0.9, 50);
+    pointLight.position.set(0, 10, 0);
+    scene.add(pointLight);
+
+    // --- 3. DUAL GRID PLANES & ARROW FIELD ---
+    const vectorFieldGroup = new THREE.Group();
+    scene.add(vectorFieldGroup);
+
+    // Global settings state
+    const STATE = {
+      formula: 'z^2',
+      gridN: 7, // 7x7 = 49 points (supports up to 40x40 = 1600 points)
+      distance: 8.0,
+      inputPointRadius: 0.045,
+      inputPointOpacity: 1.0,
+      outputPointRadius: 0.040,
+      outputPointOpacity: 0.85,
+      shaftOpacity: 0.65,
+      headOpacity: 0.85,
+      shaftRadius: 0.020,
+      headRadius: 0.060,
+      headLength: 0.160,
+      colorMode: 'phase',
+      showGhost: true,
+      showTargetSpheres: true,
+      selectedPointIndex: null,
+      subRegion: 'all'
+    };
+
+    // Helper: Map HSV to Three.Color
+    function hsvToColor(h, s, v) {
+      const c = new THREE.Color();
+      c.setHSL(h, s, v);
+      return c;
+    }
+
+    // Helper: Create 3D Text/Canvas Label
+    function makeTextSprite(text, color = '#00f2fe') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = color;
+      ctx.font = 'bold 24px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 32);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85 });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.3, 1);
+      return sprite;
+    }
+
+    // Helper: Build a 3D Grid Plane (in YZ plane with X as normal)
+    function buildComplexGridPlane(posX, isOutput = false) {
+      const group = new THREE.Group();
+      group.position.set(posX, 0, 0);
+
+      // Main 3x3 Domain Box: [-3, 3] in Y and Z
+      const boxSize = 3.0; // from -3 to +3
+      const extSize = 4.0; // extended 4x4 ghost area
+
+      // Grid Lines Material
+      const majorLineMat = new THREE.LineBasicMaterial({ color: isOutput ? 0x10b981 : 0x00f2fe, opacity: 0.7, transparent: true });
+      const minorLineMat = new THREE.LineBasicMaterial({ color: isOutput ? 0x064e3b : 0x005577, opacity: 0.3, transparent: true });
+      const ghostLineMat = new THREE.LineDashedMaterial({ color: 0x64748b, dashSize: 0.15, gapSize: 0.1, opacity: 0.35, transparent: true });
+
+      // Build Integer Grid Lines (-3 to +3)
+      for (let v = -3; v <= 3; v++) {
+        const isAxis = (v === 0);
+        const mat = isAxis ? majorLineMat : minorLineMat;
+
+        // Vertical lines (constant Real part -> Z coordinate)
+        const lineGeoV = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -boxSize, -v),
+          new THREE.Vector3(0, boxSize, -v)
+        ]);
+        group.add(new THREE.Line(lineGeoV, mat));
+
+        // Horizontal lines (constant Imaginary part -> Y coordinate)
+        const lineGeoH = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, v, -boxSize),
+          new THREE.Vector3(0, v, boxSize)
+        ]);
+        group.add(new THREE.Line(lineGeoH, mat));
+
+        // Tick Labels
+        if (v !== 0) {
+          const lblRe = makeTextSprite(`${v}`, isOutput ? '#10b981' : '#00f2fe');
+          lblRe.position.set(0, -boxSize - 0.25, -v);
+          group.add(lblRe);
+
+          const lblIm = makeTextSprite(`${v >= 0 ? '+' : ''}${v}i`, isOutput ? '#10b981' : '#00f2fe');
+          lblIm.position.set(0, v, -boxSize - 0.4);
+          group.add(lblIm);
+        }
+      }
+
+      // Outer 3x3 Border Box
+      const borderPoints = [
+        new THREE.Vector3(0, -boxSize, -boxSize),
+        new THREE.Vector3(0, boxSize, -boxSize),
+        new THREE.Vector3(0, boxSize, boxSize),
+        new THREE.Vector3(0, -boxSize, boxSize),
+        new THREE.Vector3(0, -boxSize, -boxSize)
+      ];
+      const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
+      const borderMat = new THREE.LineBasicMaterial({ color: isOutput ? 0x10b981 : 0x00f2fe, linewidth: 2 });
+      group.add(new THREE.Line(borderGeo, borderMat));
+
+      // Extended 4x4 Ghost Boundary for Output Grid
+      if (isOutput && STATE.showGhost) {
+        for (let v of [-4, 4]) {
+          const lineGeoV = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -extSize, -v),
+            new THREE.Vector3(0, extSize, -v)
+          ]);
+          const lineV = new THREE.Line(lineGeoV, ghostLineMat);
+          lineV.computeLineDistances();
+          group.add(lineV);
+
+          const lineGeoH = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, v, -extSize),
+            new THREE.Vector3(0, v, extSize)
+          ]);
+          const lineH = new THREE.Line(lineGeoH, ghostLineMat);
+          lineH.computeLineDistances();
+          group.add(lineH);
+        }
+
+        const ghostBorderPoints = [
+          new THREE.Vector3(0, -extSize, -extSize),
+          new THREE.Vector3(0, extSize, -extSize),
+          new THREE.Vector3(0, extSize, extSize),
+          new THREE.Vector3(0, -extSize, extSize),
+          new THREE.Vector3(0, -extSize, -extSize)
+        ];
+        const ghostBorderGeo = new THREE.BufferGeometry().setFromPoints(ghostBorderPoints);
+        const ghostBorder = new THREE.Line(ghostBorderGeo, ghostLineMat);
+        ghostBorder.computeLineDistances();
+        group.add(ghostBorder);
+      }
+
+      // Title Banner over Plane
+      const titleSprite = makeTextSprite(isOutput ? 'OUTPUT PLANE: w = f(z)' : 'INPUT PLANE: z = x + iy', isOutput ? '#10b981' : '#00f2fe');
+      titleSprite.scale.set(2.4, 0.6, 1);
+      titleSprite.position.set(0, boxSize + 0.6, 0);
+      group.add(titleSprite);
+
+      return group;
+    }
+
+    // Helper: Build a 3D Vector Arrow with independent shaft and head opacities
+    function createVectorArrow3D(startPos, endPos, color, isHighlighted = false) {
+      const arrowGroup = new THREE.Group();
+      const dir = new THREE.Vector3().subVectors(endPos, startPos);
+      const totalLen = dir.length();
+      if (totalLen < 0.001) return arrowGroup;
+
+      const headLen = Math.min(STATE.headLength, totalLen * 0.4);
+      const shaftLen = Math.max(0.001, totalLen - headLen);
+      const shaftR = isHighlighted ? STATE.shaftRadius * 1.8 : STATE.shaftRadius;
+      const headR = isHighlighted ? STATE.headRadius * 1.6 : STATE.headRadius;
+
+      // Shaft Material
+      const shaftMat = new THREE.MeshPhysicalMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: isHighlighted ? 0.7 : 0.25,
+        metalness: 0.7,
+        roughness: 0.15,
+        clearcoat: 1.0,
+        transparent: true,
+        opacity: isHighlighted ? 1.0 : STATE.shaftOpacity
+      });
+
+      // Head Material
+      const headMat = new THREE.MeshPhysicalMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: isHighlighted ? 0.9 : 0.4,
+        metalness: 0.7,
+        roughness: 0.15,
+        clearcoat: 1.0,
+        transparent: true,
+        opacity: isHighlighted ? 1.0 : STATE.headOpacity
+      });
+
+      // Shaft Cylinder
+      const shaftGeo = new THREE.CylinderGeometry(shaftR, shaftR, shaftLen, 20);
+      shaftGeo.translate(0, shaftLen / 2, 0);
+      shaftGeo.rotateX(Math.PI / 2);
+      const shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+      shaftMesh.position.copy(startPos);
+      shaftMesh.lookAt(endPos);
+      arrowGroup.add(shaftMesh);
+
+      // Head Cone
+      const headGeo = new THREE.ConeGeometry(headR, headLen, 20);
+      headGeo.translate(0, headLen / 2, 0);
+      headGeo.rotateX(Math.PI / 2);
+      const headMesh = new THREE.Mesh(headGeo, headMat);
+      const headPos = new THREE.Vector3().copy(startPos).add(dir.clone().normalize().multiplyScalar(shaftLen));
+      headMesh.position.copy(headPos);
+      headMesh.lookAt(endPos);
+      arrowGroup.add(headMesh);
+
+      return arrowGroup;
+    }
+
+    // Cached grid points data for raycasting inspection
+    let sampledPointsData = [];
+
+    // --- 4. REBUILD VECTOR FIELD ---
+    function updateVectorField() {
+      // Clear previous Three.js objects
+      while (vectorFieldGroup.children.length > 0) {
+        const obj = vectorFieldGroup.children[0];
+        vectorFieldGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      }
+
+      sampledPointsData = [];
+
+      const D = STATE.distance;
+      const leftX = -D / 2;
+      const rightX = D / 2;
+
+      // 1. Build Left & Right Grid Planes
+      const leftPlane = buildComplexGridPlane(leftX, false);
+      const rightPlane = buildComplexGridPlane(rightX, true);
+      vectorFieldGroup.add(leftPlane);
+      vectorFieldGroup.add(rightPlane);
+
+      // 2. Sample Grid Points in [-3, 3] x [-3i, 3i]
+      const N = STATE.gridN;
+      const totalPoints = N * N;
+      const span = 6.0; // from -3 to +3
+      const step = N > 1 ? span / (N - 1) : 0;
+
+      let countInBox = 0;
+      let countEscaped = 0;
+      let visiblePointsCount = 0;
+
+      for (let iy = 0; iy < N; iy++) {
+        const im = N > 1 ? (3.0 - iy * step) : 0; // mapped +3 down to -3
+        for (let ix = 0; ix < N; ix++) {
+          const re = N > 1 ? (-3.0 + ix * step) : 0; // mapped -3 to +3
+          const ptIndex = iy * N + ix;
+          const z = new Complex(re, im);
+
+          // Evaluate Sub-Region Inclusion Filter
+          let isIncluded = true;
+          if (STATE.subRegion === 'unit-disc') {
+            isIncluded = (z.mag() <= 1.0001);
+          } else if (STATE.subRegion === 'unit-square') {
+            isIncluded = (Math.abs(z.re) <= 1.0001 && Math.abs(z.im) <= 1.0001);
+          } else if (STATE.subRegion === 'real-axis') {
+            isIncluded = (Math.abs(z.im) <= (step > 0 ? step * 0.51 : 0.01));
+          } else if (STATE.subRegion === 'imag-axis') {
+            isIncluded = (Math.abs(z.re) <= (step > 0 ? step * 0.51 : 0.01));
+          } else if (STATE.subRegion === 'quad1') {
+            isIncluded = (z.re >= -0.0001 && z.im >= -0.0001);
+          } else if (STATE.subRegion === 'quad2') {
+            isIncluded = (z.re <= 0.0001 && z.im >= -0.0001);
+          } else if (STATE.subRegion === 'quad3') {
+            isIncluded = (z.re <= 0.0001 && z.im <= 0.0001);
+          } else if (STATE.subRegion === 'quad4') {
+            isIncluded = (z.re >= -0.0001 && z.im <= 0.0001);
+          }
+          
+          if (!isIncluded) continue;
+          visiblePointsCount++;
+
+          const w = parseAndEvaluatePoly(STATE.formula, z);
+          const wMag = w.mag();
+          const wArg = w.arg();
+
+          const in3x3 = (Math.abs(w.re) <= 3.0 && Math.abs(w.im) <= 3.0);
+          if (in3x3) countInBox++;
+          else countEscaped++;
+
+          // 3D coordinates:
+          // Left Plane: X = -D/2, Y = Im(z), Z = -Re(z)
+          // Right Plane: X = +D/2, Y = Im(w), Z = -Re(w)
+          const startPos = new THREE.Vector3(leftX, z.im, -z.re);
+          const endPos = new THREE.Vector3(rightX, w.im, -w.re);
+
+          // Color calculation
+          let color = new THREE.Color();
+          if (STATE.colorMode === 'phase') {
+            const hue = ((wArg + Math.PI) / (2 * Math.PI)) % 1.0;
+            color.setHSL(hue, 0.9, 0.55);
+          } else if (STATE.colorMode === 'magnitude') {
+            const normMag = Math.min(1.0, wMag / 6.0);
+            color.setHSL(0.65 - normMag * 0.65, 0.95, 0.5); // Blue to Red
+          } else if (STATE.colorMode === 'gradient') {
+            color.setHex(0x00f2fe).lerp(new THREE.Color(0xff007f), Math.min(1.0, wMag / 5.0));
+          } else {
+            color.setHex(0x00f2fe);
+          }
+
+          const isSelected = (STATE.selectedPointIndex === ptIndex);
+
+          // 3. Source Point Sphere on Input Plane (User Configurable Size & Opacity)
+          const srcR = isSelected ? STATE.inputPointRadius * 1.8 : STATE.inputPointRadius;
+          const srcSphereGeo = new THREE.SphereGeometry(srcR, 16, 16);
+          const srcSphereMat = new THREE.MeshPhysicalMaterial({
+            color: isSelected ? 0xffd700 : 0x00f2fe,
+            emissive: isSelected ? 0xffd700 : 0x005577,
+            emissiveIntensity: isSelected ? 0.8 : 0.3,
+            metalness: 0.7,
+            roughness: 0.15,
+            clearcoat: 1.0,
+            transparent: true,
+            opacity: isSelected ? 1.0 : STATE.inputPointOpacity
+          });
+          const srcSphere = new THREE.Mesh(srcSphereGeo, srcSphereMat);
+          srcSphere.position.copy(startPos);
+          srcSphere.userData = { ptIndex };
+          vectorFieldGroup.add(srcSphere);
+
+          // 4. Target Point Sphere on Output Plane (User Configurable Size & Opacity)
+          if (STATE.showTargetSpheres) {
+            const tgtR = isSelected ? STATE.outputPointRadius * 1.8 : STATE.outputPointRadius;
+            const tgtSphereGeo = new THREE.SphereGeometry(tgtR, 16, 16);
+            const tgtSphereMat = new THREE.MeshPhysicalMaterial({
+              color: color,
+              emissive: color,
+              emissiveIntensity: 0.4,
+              metalness: 0.7,
+              roughness: 0.15,
+              clearcoat: 1.0,
+              transparent: true,
+              opacity: isSelected ? 1.0 : (in3x3 ? STATE.outputPointOpacity : STATE.outputPointOpacity * 0.5)
+            });
+            const tgtSphere = new THREE.Mesh(tgtSphereGeo, tgtSphereMat);
+            tgtSphere.position.copy(endPos);
+            tgtSphere.userData = { ptIndex };
+            vectorFieldGroup.add(tgtSphere);
+          }
+
+          // 5. 3D Vector Arrow connecting z -> f(z)
+          const arrow = createVectorArrow3D(startPos, endPos, color, isSelected);
+          vectorFieldGroup.add(arrow);
+
+          sampledPointsData.push({
+            ptIndex,
+            z,
+            w,
+            wMag,
+            wArg,
+            startPos,
+            endPos,
+            in3x3
+          });
+        }
+      }
+
+      // Update HUD & Sub-Region Controls
+      const isFiltered = (STATE.subRegion !== 'all');
+      document.getElementById('gridPointCountBadge').innerText = isFiltered
+        ? `Sub-Region: ${visiblePointsCount} / ${totalPoints} Pts`
+        : `${totalPoints} Points (${N}²)`;
+      document.getElementById('hudSeparation').innerText = `${D.toFixed(1)} units`;
+      document.getElementById('hudInBox').innerText = `${countInBox} (${visiblePointsCount > 0 ? ((countInBox / visiblePointsCount) * 100).toFixed(0) : 0}%)`;
+      document.getElementById('hudEscaped').innerText = `${countEscaped} (${visiblePointsCount > 0 ? ((countEscaped / visiblePointsCount) * 100).toFixed(0) : 0}%)`;
+
+      const clearBtn = document.getElementById('clearSelectionBtn');
+      if (clearBtn) clearBtn.style.display = isFiltered ? 'inline-block' : 'none';
+    }
+
+    // --- 5. UI EVENT WIRING ---
+    const funcInput = document.getElementById('funcInput');
+    funcInput.addEventListener('input', (e) => {
+      STATE.formula = e.target.value;
+      updateVectorField();
+    });
+
+    // Preset Chips
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const poly = e.target.dataset.poly;
+        funcInput.value = poly;
+        STATE.formula = poly;
+        updateVectorField();
+      });
+    });
+
+    // Settings Modal Open/Close
+    const modal = document.getElementById('settingsModal');
+    document.getElementById('openSettingsBtn').addEventListener('click', () => modal.classList.add('open'));
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => modal.classList.remove('open'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+    // Square Numbers Slider (Supports up to 40x40 = 1600 points)
+    const ptsInput = document.getElementById('ptsSquareInput');
+    ptsInput.addEventListener('input', (e) => {
+      const n = parseInt(e.target.value);
+      STATE.gridN = n;
+      document.getElementById('ptsSquareVal').innerText = `${n * n} Points (${n} × ${n})`;
+      updateVectorField();
+    });
+
+    // Distance Slider
+    const distInput = document.getElementById('distInput');
+    distInput.addEventListener('input', (e) => {
+      const d = parseFloat(e.target.value);
+      STATE.distance = d;
+      document.getElementById('distVal').innerText = d.toFixed(1);
+      updateVectorField();
+    });
+
+    // Input Point Size & Opacity Listeners
+    document.getElementById('inputPtRadiusInput').addEventListener('input', (e) => {
+      STATE.inputPointRadius = parseFloat(e.target.value);
+      document.getElementById('inputPtRadiusVal').innerText = STATE.inputPointRadius.toFixed(3);
+      updateVectorField();
+    });
+
+    document.getElementById('inputPtOpacityInput').addEventListener('input', (e) => {
+      STATE.inputPointOpacity = parseFloat(e.target.value);
+      document.getElementById('inputPtOpacityVal').innerText = STATE.inputPointOpacity.toFixed(2);
+      updateVectorField();
+    });
+
+    // Output Point Size & Opacity Listeners
+    document.getElementById('outputPtRadiusInput').addEventListener('input', (e) => {
+      STATE.outputPointRadius = parseFloat(e.target.value);
+      document.getElementById('outputPtRadiusVal').innerText = STATE.outputPointRadius.toFixed(3);
+      updateVectorField();
+    });
+
+    document.getElementById('outputPtOpacityInput').addEventListener('input', (e) => {
+      STATE.outputPointOpacity = parseFloat(e.target.value);
+      document.getElementById('outputPtOpacityVal').innerText = STATE.outputPointOpacity.toFixed(2);
+      updateVectorField();
+    });
+
+    // Shaft & Head Opacity
+    document.getElementById('shaftOpacityInput').addEventListener('input', (e) => {
+      STATE.shaftOpacity = parseFloat(e.target.value);
+      document.getElementById('shaftOpacityVal').innerText = STATE.shaftOpacity.toFixed(2);
+      updateVectorField();
+    });
+
+    document.getElementById('headOpacityInput').addEventListener('input', (e) => {
+      STATE.headOpacity = parseFloat(e.target.value);
+      document.getElementById('headOpacityVal').innerText = STATE.headOpacity.toFixed(2);
+      updateVectorField();
+    });
+
+    // Shaft & Head Diameter
+    document.getElementById('shaftRadiusInput').addEventListener('input', (e) => {
+      STATE.shaftRadius = parseFloat(e.target.value);
+      document.getElementById('shaftRadiusVal').innerText = STATE.shaftRadius.toFixed(3);
+      updateVectorField();
+    });
+
+    document.getElementById('headRadiusInput').addEventListener('input', (e) => {
+      STATE.headRadius = parseFloat(e.target.value);
+      document.getElementById('headRadiusVal').innerText = STATE.headRadius.toFixed(3);
+      updateVectorField();
+    });
+
+    // Color Mode & Toggles
+    document.getElementById('colorModeSelect').addEventListener('change', (e) => {
+      STATE.colorMode = e.target.value;
+      updateVectorField();
+    });
+
+    document.getElementById('showGhostToggle').addEventListener('change', (e) => {
+      STATE.showGhost = e.target.checked;
+      updateVectorField();
+    });
+
+    document.getElementById('showTargetSpheresToggle').addEventListener('change', (e) => {
+      STATE.showTargetSpheres = e.target.checked;
+      updateVectorField();
+    });
+
+    document.getElementById('resetCamBtn').addEventListener('click', () => {
+      camera.position.copy(initialCamPos);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    // Sub-Region Chip Listeners & UI Sync
+    function syncRegionChipUI() {
+      document.querySelectorAll('.region-chip-btn').forEach(btn => {
+        if (btn.dataset.region === STATE.subRegion) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+      const clearBtn = document.getElementById('clearSelectionBtn');
+      if (clearBtn) clearBtn.style.display = (STATE.subRegion !== 'all') ? 'inline-block' : 'none';
+    }
+
+    document.querySelectorAll('.region-chip-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        STATE.subRegion = e.target.dataset.region;
+        STATE.customSelectedIndices = [];
+        syncRegionChipUI();
+        updateVectorField();
+        saveComplexMappingState();
+      });
+    });
+
+    document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+      STATE.subRegion = 'all';
+      STATE.customSelectedIndices = [];
+      syncRegionChipUI();
+      updateVectorField();
+      saveComplexMappingState();
+    });
+
+    // --- 6. RAYCASTING HOVER & CLICK INSPECTOR ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const hoverInspector = document.getElementById('hover-inspector');
+
+    function updateInspectorCard(ptData) {
+      if (!ptData) {
+        if (STATE.selectedPointIndex === null && STATE.customSelectedIndices.length === 0) hoverInspector.style.display = 'none';
+        return;
+      }
+      hoverInspector.style.display = 'block';
+      const zStr = `${ptData.z.re.toFixed(3)} ${ptData.z.im >= 0 ? '+' : ''}${ptData.z.im.toFixed(3)}i`;
+      const fzStr = `${ptData.w.re.toFixed(3)} ${ptData.w.im >= 0 ? '+' : ''}${ptData.w.im.toFixed(3)}i`;
+      document.getElementById('inspZ').innerText = zStr;
+      document.getElementById('inspFz').innerText = fzStr;
+      document.getElementById('inspMag').innerText = ptData.wMag.toFixed(3);
+      document.getElementById('inspPhase').innerText = `${(ptData.wArg * (180 / Math.PI)).toFixed(1)}°`;
+    }
+
+    document.getElementById('unlockPointBtn').addEventListener('click', () => {
+      STATE.selectedPointIndex = null;
+      STATE.subRegion = 'all';
+      STATE.customSelectedIndices = [];
+      syncRegionChipUI();
+      hoverInspector.style.display = 'none';
+      updateVectorField();
+      saveComplexMappingState();
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(vectorFieldGroup.children, true);
+
+      let found = null;
+      for (let hit of intersects) {
+        if (hit.object.userData && hit.object.userData.ptIndex !== undefined) {
+          found = hit.object.userData;
+          break;
+        }
+      }
+
+      if (found) {
+        updateInspectorCard(found);
+      } else if (STATE.selectedPointIndex === null && STATE.customSelectedIndices.length === 0) {
+        hoverInspector.style.display = 'none';
+      }
+    });
+
+    // Click on input point to isolate and display only that selected sub-region
+    window.addEventListener('click', (e) => {
+      if (e.target.closest('.formula-bar') || e.target.closest('.top-nav') || e.target.closest('.region-bar') || e.target.closest('.modal-overlay') || e.target.closest('.hud-card') || e.target.closest('#hover-inspector')) {
+        return;
+      }
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(vectorFieldGroup.children, true);
+      let foundHit = null;
+      for (let hit of intersects) {
+        if (hit.object.userData && hit.object.userData.ptIndex !== undefined) {
+          foundHit = hit.object.userData;
+          break;
+        }
+      }
+
+      if (foundHit !== null) {
+        const foundIndex = foundHit.ptIndex;
+        STATE.subRegion = 'custom';
+        if (e.shiftKey) {
+          const pos = STATE.customSelectedIndices.indexOf(foundIndex);
+          if (pos >= 0) STATE.customSelectedIndices.splice(pos, 1);
+          else STATE.customSelectedIndices.push(foundIndex);
+          if (STATE.customSelectedIndices.length === 0) STATE.subRegion = 'all';
+        } else {
+          // If already single selected, clicking it again resets back to showing all points
+          if (STATE.customSelectedIndices.length === 1 && STATE.customSelectedIndices[0] === foundIndex) {
+            STATE.subRegion = 'all';
+            STATE.customSelectedIndices = [];
+          } else {
+            STATE.customSelectedIndices = [foundIndex];
+          }
+        }
+        syncRegionChipUI();
+        updateInspectorCard(foundHit);
+        updateVectorField();
+        saveComplexMappingState();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- 7. STATE PERSISTENCE ACROSS TABS (LOCALSTORAGE) ---
+    function saveComplexMappingState() {
+      try {
+        const s = {
+          formula: STATE.formula,
+          gridN: STATE.gridN,
+          distance: STATE.distance,
+          inputPointRadius: STATE.inputPointRadius,
+          inputPointOpacity: STATE.inputPointOpacity,
+          outputPointRadius: STATE.outputPointRadius,
+          outputPointOpacity: STATE.outputPointOpacity,
+          shaftOpacity: STATE.shaftOpacity,
+          headOpacity: STATE.headOpacity,
+          shaftRadius: STATE.shaftRadius,
+          headRadius: STATE.headRadius,
+          colorMode: STATE.colorMode,
+          showGhost: STATE.showGhost,
+          showTargetSpheres: STATE.showTargetSpheres,
+          subRegion: STATE.subRegion,
+          customSelectedIndices: STATE.customSelectedIndices,
+          camPos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+          camTarget: { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+        };
+        localStorage.setItem('complex_mapping_saved_state', JSON.stringify(s));
+      } catch (e) {}
+    }
+
+    function loadComplexMappingState() {
+      try {
+        const saved = localStorage.getItem('complex_mapping_saved_state');
+        if (!saved) return false;
+        const s = JSON.parse(saved);
+        if (s.formula !== undefined) { STATE.formula = s.formula; document.getElementById('funcInput').value = s.formula; }
+        if (s.gridN !== undefined) { STATE.gridN = s.gridN; document.getElementById('ptsSquareInput').value = s.gridN; document.getElementById('ptsSquareVal').innerText = `${s.gridN * s.gridN} Points (${s.gridN} × ${s.gridN})`; }
+        if (s.distance !== undefined) { STATE.distance = s.distance; document.getElementById('distInput').value = s.distance; document.getElementById('distVal').innerText = s.distance.toFixed(1); }
+        if (s.inputPointRadius !== undefined) { STATE.inputPointRadius = s.inputPointRadius; document.getElementById('inputPtRadiusInput').value = s.inputPointRadius; document.getElementById('inputPtRadiusVal').innerText = s.inputPointRadius.toFixed(3); }
+        if (s.inputPointOpacity !== undefined) { STATE.inputPointOpacity = s.inputPointOpacity; document.getElementById('inputPtOpacityInput').value = s.inputPointOpacity; document.getElementById('inputPtOpacityVal').innerText = s.inputPointOpacity.toFixed(2); }
+        if (s.outputPointRadius !== undefined) { STATE.outputPointRadius = s.outputPointRadius; document.getElementById('outputPtRadiusInput').value = s.outputPointRadius; document.getElementById('outputPtRadiusVal').innerText = s.outputPointRadius.toFixed(3); }
+        if (s.outputPointOpacity !== undefined) { STATE.outputPointOpacity = s.outputPointOpacity; document.getElementById('outputPtOpacityInput').value = s.outputPointOpacity; document.getElementById('outputPtOpacityVal').innerText = s.outputPointOpacity.toFixed(2); }
+        if (s.shaftOpacity !== undefined) { STATE.shaftOpacity = s.shaftOpacity; document.getElementById('shaftOpacityInput').value = s.shaftOpacity; document.getElementById('shaftOpacityVal').innerText = s.shaftOpacity.toFixed(2); }
+        if (s.headOpacity !== undefined) { STATE.headOpacity = s.headOpacity; document.getElementById('headOpacityInput').value = s.headOpacity; document.getElementById('headOpacityVal').innerText = s.headOpacity.toFixed(2); }
+        if (s.shaftRadius !== undefined) { STATE.shaftRadius = s.shaftRadius; document.getElementById('shaftRadiusInput').value = s.shaftRadius; document.getElementById('shaftRadiusVal').innerText = s.shaftRadius.toFixed(3); }
+        if (s.headRadius !== undefined) { STATE.headRadius = s.headRadius; document.getElementById('headRadiusInput').value = s.headRadius; document.getElementById('headRadiusVal').innerText = s.headRadius.toFixed(3); }
+        if (s.colorMode !== undefined) { STATE.colorMode = s.colorMode; document.getElementById('colorModeSelect').value = s.colorMode; }
+        if (s.showGhost !== undefined) { STATE.showGhost = s.showGhost; document.getElementById('showGhostToggle').checked = s.showGhost; }
+        if (s.showTargetSpheres !== undefined) { STATE.showTargetSpheres = s.showTargetSpheres; document.getElementById('showTargetSpheresToggle').checked = s.showTargetSpheres; }
+        if (s.subRegion !== undefined) { STATE.subRegion = s.subRegion; syncRegionChipUI(); }
+        if (s.customSelectedIndices !== undefined) STATE.customSelectedIndices = s.customSelectedIndices;
+        if (s.camPos) camera.position.set(s.camPos.x, s.camPos.y, s.camPos.z);
+        if (s.camTarget) controls.target.set(s.camTarget.x, s.camTarget.y, s.camTarget.z);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Auto-save on any change
+    ['funcInput', 'ptsSquareInput', 'distInput', 'inputPtRadiusInput', 'inputPtOpacityInput', 'outputPtRadiusInput', 'outputPtOpacityInput', 'shaftOpacityInput', 'headOpacityInput', 'shaftRadiusInput', 'headRadiusInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', saveComplexMappingState);
+    });
+
+    ['colorModeSelect', 'showGhostToggle', 'showTargetSpheresToggle'].forEach(id => {
+      document.getElementById(id).addEventListener('change', saveComplexMappingState);
+    });
+
+    window.addEventListener('beforeunload', saveComplexMappingState);
+    controls.addEventListener('end', saveComplexMappingState);
+
+    // Initial Load & Animation
+    loadComplexMappingState();
+    updateVectorField();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+
+</html>

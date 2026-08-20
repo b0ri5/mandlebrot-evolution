@@ -1,0 +1,2606 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complex Plane 3D Terrain Visualizer & Watertight OBJ Exporter</title>
+
+  <!-- Google Fonts & Tailwind-like CSS variables -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+
+  <!-- Local Three.js and OrbitControls with CDN Fallbacks -->
+  <script src="three.min.js"></script>
+  <script>if (typeof THREE === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+  <script src="OrbitControls.js"></script>
+  <script>if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');</script>
+
+  <style>
+    :root {
+      --bg-dark: #0a0c10;
+      --panel-bg: rgba(18, 22, 31, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-purple: #7f00ff;
+      --accent-pink: #ff007f;
+      --text-main: #f0f4f8;
+      --text-muted: #94a3b8;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* UI Header Overlay */
+    .header-bar {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .app-title-badge {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      padding: 10px 18px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+    }
+
+    .app-title-text h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .app-title-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Floating Control Panel */
+    .control-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 340px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      pointer-events: auto;
+    }
+
+    /* Scrollbar styling */
+    .control-panel::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .val-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-cyan);
+      background: rgba(0, 242, 254, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 242, 254, 0.2);
+    }
+
+    /* Range Input Custom Styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.15);
+      outline: none;
+      transition: background 0.2s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.6);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Select Inputs */
+    select {
+      width: 100%;
+      background: rgba(10, 14, 23, 0.8);
+      color: var(--text-main);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    select:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: none;
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #040914;
+      box-shadow: 0 4px 20px rgba(0, 242, 254, 0.35);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(0, 242, 254, 0.5);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid var(--panel-border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    /* Checkbox & Switch controls */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider-round {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.2);
+      transition: .2s;
+      border-radius: 20px;
+    }
+
+    .slider-round:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider-round {
+      background-color: var(--accent-cyan);
+    }
+
+    input:checked+.slider-round:before {
+      transform: translateX(16px);
+    }
+
+    /* Stats HUD (Bottom Left) */
+    .stats-hud {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+    }
+
+    .stats-hud span {
+      color: var(--text-main);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+      background: rgba(16, 185, 129, 0.9);
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Hover Inspection Tooltip */
+    #hover-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 50;
+      background: rgba(10, 14, 23, 0.9);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-main);
+      display: none;
+      box-shadow: 0 4px 20px rgba(0, 242, 254, 0.2);
+    }
+
+    /* Histogram Card (Left Side) */
+    .histogram-card {
+      position: absolute;
+      top: 90px;
+      left: 20px;
+      width: 280px;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .histogram-canvas-wrapper {
+      position: relative;
+      width: 100%;
+      height: 110px;
+      background: rgba(10, 14, 23, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #histogramCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hist-stats-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .hist-stats-row span {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    /* Top Navigation Header */
+    .top-nav {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      padding: 6px 10px;
+      border-radius: 30px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    }
+
+    .nav-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.3), rgba(127, 0, 255, 0.4));
+      border: 1px solid rgba(0, 242, 254, 0.5);
+      box-shadow: 0 0 16px rgba(0, 242, 254, 0.25);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="canvas-container"></div>
+
+  <!-- Top Navigation Tabs -->
+  <div class="top-nav">
+    <a href="index.html" class="nav-tab active">
+      <span>⛰️ 3D Mandelbrot Sculpture</span>
+    </a>
+    <a href="complex-mapping.html" class="nav-tab">
+      <span>📐 Complex Vector Mapping: f(z)</span>
+    </a>
+  </div>
+
+  <!-- Header Overlay -->
+  <div class="header-bar">
+    <div class="app-title-badge">
+      <div class="logo-icon">z²</div>
+      <div class="app-title-text">
+        <h1>Complex Plane 3D Visualizer</h1>
+        <p>z_{k+1} = z_0 + z_k² &bull; Watertight OBJ Exporter</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Height Histogram Card (Left Side) -->
+  <div class="histogram-card">
+    <div class="section-title">
+      <span>Height Distribution (Histogram)</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="20" x2="18" y2="10"></line>
+        <line x1="12" y1="20" x2="12" y2="4"></line>
+        <line x1="6" y1="20" x2="6" y2="14"></line>
+      </svg>
+    </div>
+    <div class="histogram-canvas-wrapper">
+      <canvas id="histogramCanvas" width="248" height="110"></canvas>
+      <div id="histTooltip"
+        style="position: absolute; display: none; pointer-events: none; background: rgba(10,14,23,0.95); border: 1px solid var(--accent-cyan); border-radius: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-main); z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+      </div>
+    </div>
+    <!-- X-Axis Labels (Height: 0 to MaxHeight) -->
+    <div class="hist-axis-row"
+      style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: -6px;">
+      <span>0.0 (Floor)</span>
+      <span id="histMidLabel">Height</span>
+      <span id="histMaxLabel">Max Height</span>
+    </div>
+    <div class="hist-stats-row">
+      <div>Floor Diverged: <span id="histFloorPct">0%</span></div>
+      <div>Mean Height: <span id="histMeanH">0.00</span></div>
+    </div>
+  </div>
+
+  <!-- Floating Control Panel -->
+  <div class="control-panel">
+
+    <div class="section-title">
+      <span>Presets</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon
+          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+        </polygon>
+      </svg>
+    </div>
+
+    <div class="control-group">
+      <select id="presetSelect">
+        <option value="custom">-- Custom Settings --</option>
+        <option value="step0">Step 0: Initial Unit Bowl</option>
+        <option value="step1" selected>Step 1: Heart & Main Bulb</option>
+        <option value="step2">Step 2: Dual Symmetrical Lobes</option>
+        <option value="step3">Step 3: Fine Antenna Structure</option>
+        <option value="step7">Step 7: Deep Fractal Topography</option>
+        <option value="logPeak">Logarithmic Peak Detail</option>
+        <option value="smoothFloor">Smoothstep Plateaus</option>
+      </select>
+    </div>
+
+    <div class="section-title">
+      <span>Math & Iteration</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+      </svg>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Steps (Iterations)</span>
+        <span id="stepsVal" class="val-badge">1</span>
+      </div>
+      <input type="range" id="stepsInput" min="0" max="15" step="1" value="1">
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Point Steps (Future Projection)</span>
+        <span id="pointStepsVal" class="val-badge">1</span>
+      </div>
+      <input type="range" id="pointStepsInput" min="1" max="50" step="1" value="1">
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Grid Resolution</span>
+        <span id="resVal" class="val-badge">250 x 250</span>
+      </div>
+      <input type="range" id="resInput" min="50" max="500" step="10" value="250">
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Golden Ratio Footprint Basis</span>
+      </div>
+      <select id="goldenModeSelect">
+        <option value="shortest" selected>Shortest Footprint Dimension (Squished Aesthetic)</option>
+        <option value="longest">Longest Footprint Dimension (Expanded Aesthetic)</option>
+        <option value="average">Average Footprint Dimension (Balanced)</option>
+        <option value="full">Full Complex Bounding Box (4.0)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Max Height (Z Amplitude)</span>
+        <div>
+          <button id="autoGoldenBtn" title="Auto-scale height to 1/Phi (0.618) of active footprint width"
+            style="background:rgba(0,242,254,0.15); border:1px solid rgba(0,242,254,0.4); color:#00f2fe; border-radius:4px; padding:2px 6px; font-size:0.7rem; cursor:pointer; margin-right:6px;">✨
+            Golden Ratio</button>
+          <span id="heightVal" class="val-badge">2.2</span>
+        </div>
+      </div>
+      <input type="range" id="heightInput" min="0.2" max="10.0" step="0.1" value="2.2">
+    </div>
+
+    <div class="section-title">
+      <span>Visualization Metric</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20V10"></path>
+        <path d="M18 20V4"></path>
+        <path d="M6 20v-4"></path>
+      </svg>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Metric Formula</span>
+      </div>
+      <select id="metricSelect">
+        <option value="finalMag" selected>Final Distance |z_N| (Standard Central Object)</option>
+        <option value="orbitCentroidDist">Distance to Orbit Centroid (Center of Gravity)</option>
+        <option value="avgDistFromOrigin">Average Distance from Original Point</option>
+        <option value="invPathDist">Inverse Path Distance (Smooth Central Basins)</option>
+        <option value="maxExcursion">Max Orbit Excursion (Peak Radius Object)</option>
+        <option value="orbitRadiusGyration">Orbit Dispersion (Radius of Gyration)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Cliff Softener (Boundary Transition)</span>
+      </div>
+      <select id="cliffSoftenerSelect">
+        <option value="smooth" selected>Smooth Quadratic Falloff (Cliff-Free Slopes)</option>
+        <option value="gaussian">Gaussian Soft Envelope</option>
+        <option value="none">Raw Unsmoothed Slopes</option>
+      </select>
+    </div>
+
+    <div class="toggle-row">
+      <span>Show Escaped Orbit Points</span>
+      <label class="switch">
+        <input type="checkbox" id="showEscapedToggle">
+        <span class="slider-round"></span>
+      </label>
+    </div>
+
+    <div class="section-title">
+      <span>3D Print Slope & Overhang Control</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 17l6-6 4 4 8-8"></path>
+      </svg>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Slope Limiter Approach</span>
+      </div>
+      <select id="slopeModeSelect">
+        <option value="none" selected>None (Raw Fractal Slopes)</option>
+        <option value="thermal">Thermal Heat Diffusion (Melted Wax - Organic Curves)</option>
+        <option value="sigmoid">Sigmoidal Soft Saturator (Organic Domes)</option>
+        <option value="gradient">Gradient Angle Clamp (Overhang Support Cone)</option>
+        <option value="hydro">Hydraulic Flow Erosion (Natural Valleys)</option>
+        <option value="relaxation">Erosion Slope Relaxation (Terraces)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Max Printable Slope Angle</span>
+        <span id="slopeAngleVal" class="val-badge">45°</span>
+      </div>
+      <input type="range" id="slopeAngleInput" min="15" max="75" step="5" value="45">
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>3D Print Base Plate Thickness (mm)</span>
+        <span id="baseVal" class="val-badge">0.8 mm</span>
+      </div>
+      <input type="range" id="baseInput" min="0.0" max="3.0" step="0.1" value="0.8">
+    </div>
+
+    <div class="toggle-row">
+      <span>Unified Connected Base (Fix Floating Slicer Warning)</span>
+      <label class="switch">
+        <input type="checkbox" id="unifiedBaseToggle">
+        <span class="slider-round"></span>
+      </label>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>3D Print Mesh Blur (Spike Smoothing)</span>
+        <span id="blurVal" class="val-badge">0 Passes</span>
+      </div>
+      <input type="range" id="blurInput" min="0" max="10" step="1" value="0">
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Dampening Function</span>
+      </div>
+      <select id="dampSelect">
+        <option value="linear" selected>Linear (z)</option>
+        <option value="sqrt">Square Root (√z)</option>
+        <option value="root4">4th Root (z^0.25 - Soft Hills)</option>
+        <option value="hemisphere">Hemispherical (√(2z - z²))</option>
+        <option value="cosine">Cosine Ease (Soft Waves)</option>
+        <option value="sigmoid">Sigmoidal (Print Terraces)</option>
+        <option value="log">Logarithmic (log(1+z))</option>
+        <option value="smoothstep">Smoothstep (3z² - 2z³)</option>
+      </select>
+    </div>
+
+    <div class="section-title">
+      <span>Rendering & Colors</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 2a7 7 0 1 0 10 10"></path>
+      </svg>
+    </div>
+
+    <div class="control-group">
+      <div class="label-row">
+        <span>Color Palette</span>
+      </div>
+      <select id="paletteSelect">
+        <option value="viridis">Viridis Spectrum</option>
+        <option value="magma" selected>Magma Volcano</option>
+        <option value="cyberpunk">Cyberpunk Neon</option>
+        <option value="emerald">Emerald Topography</option>
+        <option value="solar">Solar Flare</option>
+        <option value="monochrome">Monochrome Silver</option>
+      </select>
+    </div>
+
+    <div class="toggle-row">
+      <span>Wireframe Overlay</span>
+      <label class="switch">
+        <input type="checkbox" id="wireframeToggle">
+        <span class="slider-round"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>Auto Rotation</span>
+      <label class="switch">
+        <input type="checkbox" id="autoRotateToggle">
+        <span class="slider-round"></span>
+      </label>
+    </div>
+
+    <div class="section-title">
+      <span>Export & Actions</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    </div>
+
+    <button id="exportObjBtn" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Export Watertight .OBJ
+    </button>
+
+    <button id="resetCamBtn" class="btn btn-secondary">
+      Reset Camera View
+    </button>
+  </div>
+
+  <!-- Stats HUD -->
+  <div class="stats-hud">
+    <div>Resolution: <span id="hudRes">150 x 150</span></div>
+    <div>Vertices: <span id="hudVerts">22,500</span></div>
+    <div>Triangles: <span id="hudTris">44,702</span></div>
+    <div>Compute Time: <span id="hudCompute">1.2 ms</span></div>
+    <div>Render FPS: <span id="hudFps">60</span></div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">OBJ File Exported Successfully!</div>
+
+  <!-- Tooltip -->
+  <div id="hover-tooltip"></div>
+
+  <!-- Trajectory Inspector Floating Overlay Card -->
+  <div id="trajectoryCard" class="glass-card"
+    style="display:none; position:fixed; bottom:20px; left:20px; z-index:100; min-width:280px; max-width:340px; padding:12px 16px; font-size:0.8rem; background:rgba(18,22,31,0.92); backdrop-filter:blur(12px); border:1px solid rgba(0,242,254,0.35); border-radius:12px; color:#e2e8f0; box-shadow:0 8px 32px rgba(0,0,0,0.6); pointer-events:auto;">
+    <div
+      style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
+      <span style="font-weight:600; color:#00f2fe; display:flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        Orbit Trajectory Inspector
+      </span>
+      <button id="clearTrajBtn"
+        style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#94a3b8; cursor:pointer; font-size:0.75rem; border-radius:4px; padding:2px 8px;"
+        title="Unlock / Clear Trajectory">Unlock ✕</button>
+    </div>
+    <div id="trajSeedText" style="font-family:monospace; color:#ffd700; font-weight:600; margin-bottom:4px;">z₀ = 0.0000
+      + 0.0000i</div>
+    <div id="trajStatusBadge"
+      style="display:inline-block; font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:4px; margin-bottom:8px; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4);">
+      Trapped (In Set)</div>
+
+    <div
+      style="max-height:130px; overflow-y:auto; font-family:monospace; font-size:0.75rem; background:rgba(0,0,0,0.4); border-radius:6px; padding:6px; margin-bottom:8px; border:1px solid rgba(255,255,255,0.05);">
+      <table style="width:100%; text-align:left; border-collapse:collapse;" id="trajTable">
+        <!-- Orbit step rows inserted dynamically -->
+      </table>
+    </div>
+
+    <div id="trajMetricDetail" style="font-size:0.75rem; color:#94a3b8; line-height:1.3; font-family:sans-serif;">
+      Metric: Final Distance |z_N|
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script>
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      console.error('GLOBAL JS ERROR:', msg, 'at line:', lineNo);
+      const errDiv = document.createElement('div');
+      errDiv.id = "global-js-error";
+      errDiv.style = "position:fixed;top:15px;left:50%;transform:translateX(-50%);background:#ef4444;color:white;padding:14px 24px;z-index:9999;font-family:monospace;font-size:13px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.8);border:2px solid #ffffff;";
+      errDiv.innerText = `JS EXCEPTION: ${msg} (Line ${lineNo})`;
+      document.body.appendChild(errDiv);
+      return false;
+    };
+    // --- 1. COLOR PALETTE DEFINITIONS ---
+    const PALETTES = {
+      viridis: [
+        { t: 0.0, color: new THREE.Color(0x280b3d) },
+        { t: 0.25, color: new THREE.Color(0x3b528b) },
+        { t: 0.5, color: new THREE.Color(0x21918c) },
+        { t: 0.75, color: new THREE.Color(0x5ec962) },
+        { t: 1.0, color: new THREE.Color(0xfde725) }
+      ],
+      magma: [
+        { t: 0.0, color: new THREE.Color(0x1e0836) },
+        { t: 0.25, color: new THREE.Color(0x51127c) },
+        { t: 0.5, color: new THREE.Color(0xb73779) },
+        { t: 0.75, color: new THREE.Color(0xf1605d) },
+        { t: 1.0, color: new THREE.Color(0xfcfdbf) }
+      ],
+      cyberpunk: [
+        { t: 0.0, color: new THREE.Color(0x120836) },
+        { t: 0.3, color: new THREE.Color(0x7f00ff) },
+        { t: 0.6, color: new THREE.Color(0x00f2fe) },
+        { t: 0.85, color: new THREE.Color(0xff007f) },
+        { t: 1.0, color: new THREE.Color(0xffe600) }
+      ],
+      emerald: [
+        { t: 0.0, color: new THREE.Color(0x04283f) },
+        { t: 0.3, color: new THREE.Color(0x05668d) },
+        { t: 0.6, color: new THREE.Color(0x02c39a) },
+        { t: 0.85, color: new THREE.Color(0xf0f3bd) },
+        { t: 1.0, color: new THREE.Color(0xffffff) }
+      ],
+      solar: [
+        { t: 0.0, color: new THREE.Color(0x360505) },
+        { t: 0.3, color: new THREE.Color(0x800000) },
+        { t: 0.6, color: new THREE.Color(0xff4500) },
+        { t: 0.85, color: new THREE.Color(0xffa500) },
+        { t: 1.0, color: new THREE.Color(0xffffcc) }
+      ],
+      monochrome: [
+        { t: 0.0, color: new THREE.Color(0x1f2937) },
+        { t: 0.3, color: new THREE.Color(0x4b5563) },
+        { t: 0.6, color: new THREE.Color(0x9ca3af) },
+        { t: 0.85, color: new THREE.Color(0xe5e7eb) },
+        { t: 1.0, color: new THREE.Color(0xffffff) }
+      ]
+    };
+
+    function samplePalette(paletteKey, t) {
+      const stops = PALETTES[paletteKey] || PALETTES.magma;
+      const clampedT = Math.max(0, Math.min(1, t));
+
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (clampedT >= stops[i].t && clampedT <= stops[i + 1].t) {
+          const localT = (clampedT - stops[i].t) / (stops[i + 1].t - stops[i].t);
+          const c = new THREE.Color();
+          c.lerpColors(stops[i].color, stops[i + 1].color, localT);
+          return c;
+        }
+      }
+      return stops[stops.length - 1].color.clone();
+    }
+
+    // --- 2. THREE.JS SCENE SETUP ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x12161f);
+    scene.fog = new THREE.FogExp2(0x12161f, 0.03);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    const initialCamPos = new THREE.Vector3(7, 8, 10);
+    camera.position.copy(initialCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Built-in Orbit Controls with Safety Fallback
+    let controls;
+    if (typeof THREE.OrbitControls === 'function') {
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI; // Full 180 degree rotation (allows looking directly from the bottom up)
+    } else {
+      console.warn("THREE.OrbitControls CDN script not available. Using built-in mouse orbit fallback.");
+      controls = {
+        target: new THREE.Vector3(0, 0, 0),
+        update: function () { }
+      };
+      let isDragging = false;
+      let prevMouse = { x: 0, y: 0 };
+      let spherical = new THREE.Spherical().setFromVector3(camera.position);
+
+      renderer.domElement.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevMouse = { x: e.clientX, y: e.clientY };
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      renderer.domElement.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevMouse.x;
+        const dy = e.clientY - prevMouse.y;
+        spherical.theta -= dx * 0.005;
+        spherical.phi -= dy * 0.005;
+        spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+        camera.position.setFromSpherical(spherical);
+        camera.lookAt(controls.target);
+        prevMouse = { x: e.clientX, y: e.clientY };
+      });
+      renderer.domElement.addEventListener('wheel', (e) => {
+        spherical.radius += e.deltaY * 0.01;
+        spherical.radius = Math.max(2, Math.min(50, spherical.radius));
+        camera.position.setFromSpherical(spherical);
+        camera.lookAt(controls.target);
+      });
+    }
+    camera.lookAt(controls.target);
+
+    // Lighting Rig
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    mainLight.position.set(6, 12, 8);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.bias = -0.0001;
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0x00f2fe, 0.4);
+    fillLight.position.set(-8, 4, -6);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xff007f, 0.3);
+    rimLight.position.set(0, -6, -8);
+    scene.add(rimLight);
+
+    // Floor Grid Helper
+    const gridHelper = new THREE.GridHelper(12, 24, 0x1f293d, 0x111827);
+    gridHelper.position.y = -2.0;
+    scene.add(gridHelper);
+
+    // Dynamic Mesh Objects
+    let terrainMesh = null;
+    let wireframeMesh = null;
+
+    // --- 3. MANDELBROT COMPUTATION ENGINE ---
+    function computeMandelbrot(resolution, steps, maxHeight, dampeningType) {
+      const W = resolution;
+      const H = resolution;
+      const totalPoints = W * H;
+
+      const metricType = document.getElementById('metricSelect')?.value || 'finalMag';
+      const slopeMode = document.getElementById('slopeModeSelect')?.value || 'none';
+      const maxAngleDeg = parseFloat(document.getElementById('slopeAngleInput')?.value || 45);
+      const cliffSoftener = document.getElementById('cliffSoftenerSelect')?.value || 'smooth';
+
+      const heights = new Float32Array(totalPoints);
+      const baseZVals = new Float32Array(totalPoints);
+      const rawMetrics = new Float32Array(totalPoints);
+      const finalMagVals = new Float32Array(totalPoints);
+
+      const dx = 4.0 / (W - 1);
+      const dy = 4.0 / (H - 1);
+
+      const startTime = performance.now();
+
+      // 1. Calculate trajectory & metric for each point
+      let maxMetricVal = 0.0001;
+
+      const activeFlags = new Uint8Array(totalPoints);
+      const seedRadii = new Float32Array(totalPoints);
+
+      for (let iy = 0; iy < H; iy++) {
+        const y0 = 2.0 - iy * dy; // mapped +2 down to -2
+        for (let ix = 0; ix < W; ix++) {
+          const x0 = -2.0 + ix * dx; // mapped -2 to +2
+          const idx = iy * W + ix;
+          seedRadii[idx] = Math.sqrt(x0 * x0 + y0 * y0);
+
+          let zr = x0;
+          let zi = y0;
+          let active = (zr * zr + zi * zi) < 4.0;
+
+          let totalPathDist = 0;
+          let maxExcursion = Math.sqrt(zr * zr + zi * zi);
+          let escapeStep = steps;
+          let finalMagVal = maxExcursion;
+
+          let sumZr = x0, sumZi = y0;
+          let sumDistFromStart = 0;
+          let ptsCount = 1;
+
+          let trajR = [x0];
+          let trajI = [y0];
+
+          if (active && steps > 0) {
+            for (let k = 0; k < steps; k++) {
+              const zr_prev = zr;
+              const zi_prev = zi;
+
+              // Exact standard Mandelbrot formula: z_{k+1} = z_0 + z_k^2
+              const zr_next = x0 + (zr * zr - zi * zi);
+              const zi_next = y0 + (2.0 * zr * zi);
+              zr = zr_next;
+              zi = zi_next;
+
+              const stepDx = zr - zr_prev;
+              const stepDy = zi - zi_prev;
+              const stepDist = Math.sqrt(stepDx * stepDx + stepDy * stepDy);
+              totalPathDist += stepDist;
+
+              sumZr += zr;
+              sumZi += zi;
+              ptsCount++;
+              trajR.push(zr);
+              trajI.push(zi);
+
+              const distFromStart = Math.sqrt((zr - x0) * (zr - x0) + (zi - y0) * (zi - y0));
+              sumDistFromStart += distFromStart;
+
+              const magSq = zr * zr + zi * zi;
+              const currentMag = Math.sqrt(magSq);
+              if (currentMag > maxExcursion) maxExcursion = currentMag;
+
+              if (magSq >= 4.0) {
+                active = false;
+                escapeStep = k + 1 - Math.log2(Math.max(1, Math.log2(currentMag)));
+                finalMagVal = 2.0;
+                break;
+              }
+            }
+          }
+
+          if (active) finalMagVal = Math.min(2.0, Math.sqrt(zr * zr + zi * zi));
+          activeFlags[idx] = active ? 1 : 0;
+          finalMagVals[idx] = finalMagVal;
+
+          // Trajectory Centroid & Dispersion Metrics
+          const cR = sumZr / ptsCount;
+          const cI = sumZi / ptsCount;
+          const distToCentroid = Math.sqrt((x0 - cR) * (x0 - cR) + (y0 - cI) * (y0 - cI));
+          const avgDistFromSeed = ptsCount > 1 ? (sumDistFromStart / (ptsCount - 1)) : 0;
+
+          let radGyration = 0;
+          for (let p = 0; p < ptsCount; p++) {
+            const dr = trajR[p] - cR;
+            const di = trajI[p] - cI;
+            radGyration += dr * dr + di * di;
+          }
+          radGyration = Math.sqrt(radGyration / ptsCount);
+
+          // Select Metric
+          let mVal = 0;
+          switch (metricType) {
+            case 'orbitCentroidDist':
+              mVal = distToCentroid;
+              break;
+            case 'avgDistFromOrigin':
+              mVal = avgDistFromSeed;
+              break;
+            case 'invPathDist':
+              mVal = 1.0 / (1.0 + totalPathDist);
+              break;
+            case 'maxExcursion':
+              mVal = Math.min(4.0, maxExcursion);
+              break;
+            case 'orbitRadiusGyration':
+              mVal = radGyration;
+              break;
+            case 'finalMag':
+            default:
+              mVal = finalMagVal;
+              break;
+          }
+
+          if (!isFinite(mVal) || isNaN(mVal)) mVal = 0;
+          rawMetrics[idx] = mVal;
+          if (active && mVal > maxMetricVal) maxMetricVal = mVal;
+        }
+      }
+
+      // 2. Map Metric to baseZ and apply Dampening
+      for (let i = 0; i < totalPoints; i++) {
+        let rawBaseZ = 0;
+
+        if (!activeFlags[i]) {
+          rawBaseZ = 0.0; // Strictly force flat zero floor for points outside the Mandelbrot set
+        } else if (metricType === 'invPathDist') {
+          rawBaseZ = Math.max(0, Math.min(1, rawMetrics[i]));
+        } else if (metricType === 'maxExcursion') {
+          rawBaseZ = (2.0 - Math.min(2.0, rawMetrics[i])) / 2.0;
+        } else if (metricType === 'orbitCentroidDist' || metricType === 'avgDistFromOrigin' || metricType === 'orbitRadiusGyration') {
+          const norm = maxMetricVal > 0 ? Math.min(1.0, rawMetrics[i] / maxMetricVal) : 0;
+          const baseVal = Math.max(0, Math.min(1.0, 1.0 - norm));
+
+          // C1 Smoothstep Boundary Taper using true escape magnitude finalMagVals[i] (|z_N|)
+          const bFade = Math.max(0, Math.min(1.0, (2.0 - finalMagVals[i]) / 2.0));
+          const smoothFade = bFade * bFade * (3.0 - 2.0 * bFade);
+          rawBaseZ = baseVal * smoothFade;
+        } else {
+          // Standard Default Mandelbrot Metric (finalMag): (2.0 - |z_N|) / 2.0
+          rawBaseZ = (2.0 - Math.min(2.0, rawMetrics[i])) / 2.0;
+        }
+
+        if (!isFinite(rawBaseZ) || isNaN(rawBaseZ)) rawBaseZ = 0;
+        baseZVals[i] = rawBaseZ;
+
+        // Apply dampening function
+        let dampZ = rawBaseZ;
+        switch (dampeningType) {
+          case 'sqrt':
+            dampZ = Math.sqrt(Math.max(0, rawBaseZ));
+            break;
+          case 'root4':
+            dampZ = Math.pow(Math.max(0, rawBaseZ), 0.25);
+            break;
+          case 'hemisphere':
+            const bh = Math.max(0, Math.min(1, rawBaseZ));
+            dampZ = Math.sqrt(Math.max(0, 2.0 * bh - bh * bh));
+            break;
+          case 'cosine':
+            const cb = Math.max(0, Math.min(1, rawBaseZ));
+            dampZ = 0.5 * (1.0 - Math.cos(Math.PI * cb));
+            break;
+          case 'sigmoid':
+            const sb = Math.max(0, Math.min(1, rawBaseZ));
+            const sig = 1.0 / (1.0 + Math.exp(-8.0 * (sb - 0.5)));
+            const sigMin = 1.0 / (1.0 + Math.exp(4.0));
+            const sigMax = 1.0 / (1.0 + Math.exp(-4.0));
+            dampZ = (sig - sigMin) / (sigMax - sigMin);
+            break;
+          case 'log':
+            const lb = Math.max(0, Math.min(1, rawBaseZ));
+            dampZ = Math.log(1.0 + 9.0 * lb) / Math.LN10;
+            break;
+          case 'smoothstep':
+            const c = Math.max(0, Math.min(1, rawBaseZ));
+            dampZ = c * c * (3.0 - 2.0 * c);
+            break;
+          case 'linear':
+          default:
+            dampZ = rawBaseZ;
+            break;
+        }
+
+        if (!isFinite(dampZ) || isNaN(dampZ)) dampZ = 0;
+        heights[i] = dampZ * maxHeight;
+      }
+
+      // 3. Slope Angle Limiter & Overhang Control
+      if (slopeMode !== 'none') {
+        const physicalWidth = 6.0;
+        const cellSpacing = physicalWidth / (W - 1);
+        const maxAngleRad = (maxAngleDeg * Math.PI) / 180.0;
+        const maxDz = cellSpacing * Math.tan(maxAngleRad); // Max allowed vertical delta per cell
+
+        if (slopeMode === 'thermal') {
+          // Thermal Heat Diffusion (Simulates wax melt: dissolves steep cliffs into smooth organic curves with clean base perimeter)
+          const tempH = new Float32Array(totalPoints);
+          for (let pass = 0; pass < 8; pass++) {
+            tempH.set(heights);
+            for (let iy = 1; iy < H - 1; iy++) {
+              for (let ix = 1; ix < W - 1; ix++) {
+                const idx = iy * W + ix;
+                const hC = tempH[idx];
+                if (hC <= 0.001) continue; // Keep floor boundary clean
+
+                const n1 = tempH[idx - 1], n2 = tempH[idx + 1], n3 = tempH[idx - W], n4 = tempH[idx + W];
+                const maxDiff = Math.max(Math.abs(hC - n1), Math.abs(hC - n2), Math.abs(hC - n3), Math.abs(hC - n4));
+
+                if (maxDiff > maxDz) {
+                  const activeNeighbors = [n1, n2, n3, n4].filter(n => n > 0.001);
+                  if (activeNeighbors.length >= 2) {
+                    const avgN = activeNeighbors.reduce((a, b) => a + b, 0) / activeNeighbors.length;
+                    const smoothed = hC * 0.4 + avgN * 0.6;
+                    heights[idx] = smoothed < 0.03 ? 0.001 : smoothed;
+                  }
+                }
+              }
+            }
+          }
+        } else if (slopeMode === 'sigmoid') {
+          // Sigmoidal Soft Saturator (Compresses steep gradients into organic rounded domes)
+          for (let iy = 1; iy < H - 1; iy++) {
+            for (let ix = 1; ix < W - 1; ix++) {
+              const idx = iy * W + ix;
+              const hC = heights[idx];
+              if (hC <= 0.001) continue;
+              const avgN = (heights[idx - 1] + heights[idx + 1] + heights[idx - W] + heights[idx + W]) * 0.25;
+              const diff = hC - avgN;
+              if (diff > maxDz) {
+                heights[idx] = avgN + maxDz * Math.tanh(diff / maxDz);
+              }
+            }
+          }
+        } else if (slopeMode === 'hydro') {
+          // Hydraulic Rain Flow Erosion (Simulates water runoff dissolving steep ridges into natural valleys)
+          for (let pass = 0; pass < 6; pass++) {
+            for (let iy = 1; iy < H - 1; iy++) {
+              for (let ix = 1; ix < W - 1; ix++) {
+                const idx = iy * W + ix;
+                if (heights[idx] <= 0.001) continue;
+                let lowestNeighbor = idx;
+                let minH = heights[idx];
+                const nList = [idx - 1, idx + 1, idx - W, idx + W];
+                for (let n of nList) {
+                  if (heights[n] < minH) { minH = heights[n]; lowestNeighbor = n; }
+                }
+                if (lowestNeighbor !== idx) {
+                  const drop = heights[idx] - minH;
+                  if (drop > maxDz) {
+                    const erosion = (drop - maxDz) * 0.3;
+                    heights[idx] -= erosion;
+                    if (heights[lowestNeighbor] > 0.001) heights[lowestNeighbor] += erosion * 0.8;
+                  }
+                }
+              }
+            }
+          }
+        } else if (slopeMode === 'gradient') {
+          // Peak-preserving overhang slope angle limiter (guarantees slope <= maxAngleDeg symmetrically everywhere)
+          for (let pass = 0; pass < 20; pass++) {
+            let changed = false;
+            for (let iy = 0; iy < H; iy++) {
+              for (let ix = 0; ix < W; ix++) {
+                const idx = iy * W + ix;
+                const hVal = heights[idx];
+                if (ix > 0 && heights[idx - 1] < hVal - maxDz) { heights[idx - 1] = hVal - maxDz; changed = true; }
+                if (ix < W - 1 && heights[idx + 1] < hVal - maxDz) { heights[idx + 1] = hVal - maxDz; changed = true; }
+                if (iy > 0 && heights[idx - W] < hVal - maxDz) { heights[idx - W] = hVal - maxDz; changed = true; }
+                if (iy < H - 1 && heights[idx + W] < hVal - maxDz) { heights[idx + W] = hVal - maxDz; changed = true; }
+              }
+            }
+            for (let iy = H - 1; iy >= 0; iy--) {
+              for (let ix = W - 1; ix >= 0; ix--) {
+                const idx = iy * W + ix;
+                const hVal = heights[idx];
+                if (ix > 0 && heights[idx - 1] < hVal - maxDz) { heights[idx - 1] = hVal - maxDz; changed = true; }
+                if (ix < W - 1 && heights[idx + 1] < hVal - maxDz) { heights[idx + 1] = hVal - maxDz; changed = true; }
+                if (iy > 0 && heights[idx - W] < hVal - maxDz) { heights[idx - W] = hVal - maxDz; changed = true; }
+                if (iy < H - 1 && heights[idx + W] < hVal - maxDz) { heights[idx + W] = hVal - maxDz; changed = true; }
+              }
+            }
+            if (!changed) break;
+          }
+        } else if (slopeMode === 'relaxation') {
+          // 4-neighbor erosion slope relaxation (symmetric 2-directional sweep)
+          for (let pass = 0; pass < 4; pass++) {
+            for (let iy = 1; iy < H - 1; iy++) {
+              for (let ix = 1; ix < W - 1; ix++) {
+                const idx = iy * W + ix;
+                const hCurrent = heights[idx];
+                const minNeighbor = Math.min(heights[idx - 1], heights[idx + 1], heights[idx - W], heights[idx + W]);
+                if (hCurrent - minNeighbor > maxDz) heights[idx] = minNeighbor + maxDz;
+              }
+            }
+            for (let iy = H - 2; iy >= 1; iy--) {
+              for (let ix = W - 2; ix >= 1; ix--) {
+                const idx = iy * W + ix;
+                const hCurrent = heights[idx];
+                const minNeighbor = Math.min(heights[idx - 1], heights[idx + 1], heights[idx - W], heights[idx + W]);
+                if (hCurrent - minNeighbor > maxDz) heights[idx] = minNeighbor + maxDz;
+              }
+            }
+          }
+        }
+      }
+
+      // Spatial Blur Pass for 3D Printing (Smooths spikes & needle vertices)
+      const blurPasses = parseInt(document.getElementById('blurInput')?.value || 0);
+      if (blurPasses > 0) {
+        const tempHeights = new Float32Array(totalPoints);
+        for (let pass = 0; pass < blurPasses; pass++) {
+          tempHeights.set(heights);
+          for (let iy = 0; iy < H; iy++) {
+            for (let ix = 0; ix < W; ix++) {
+              const idx = iy * W + ix;
+              let sum = tempHeights[idx] * 4.0;
+              let count = 4;
+
+              if (ix > 0) { sum += tempHeights[idx - 1] * 2.0; count += 2; }
+              if (ix < W - 1) { sum += tempHeights[idx + 1] * 2.0; count += 2; }
+              if (iy > 0) { sum += tempHeights[idx - W] * 2.0; count += 2; }
+              if (iy < H - 1) { sum += tempHeights[idx + W] * 2.0; count += 2; }
+
+              if (ix > 0 && iy > 0) { sum += tempHeights[idx - W - 1]; count += 1; }
+              if (ix < W - 1 && iy > 0) { sum += tempHeights[idx - W + 1]; count += 1; }
+              if (ix > 0 && iy < H - 1) { sum += tempHeights[idx + W - 1]; count += 1; }
+              if (ix < W - 1 && iy < H - 1) { sum += tempHeights[idx + W + 1]; count += 1; }
+
+              heights[idx] = sum / count;
+            }
+          }
+        }
+      }
+
+      const computeTime = performance.now() - startTime;
+      return { heights, baseZVals, computeTime, W, H };
+    }
+
+    // --- 4. MESH BUILDER ---
+    function updateTerrainMesh() {
+      const resolution = parseInt(document.getElementById('resInput').value);
+      const steps = parseInt(document.getElementById('stepsInput').value);
+      const maxHeight = parseFloat(document.getElementById('heightInput').value);
+      const baseDepth = parseFloat(document.getElementById('baseInput').value);
+      const dampType = document.getElementById('dampSelect').value;
+      const paletteKey = document.getElementById('paletteSelect').value;
+      const showWireframe = document.getElementById('wireframeToggle').checked;
+
+      // Run calculation
+      const data = computeMandelbrot(resolution, steps, maxHeight, dampType);
+      const W = data.W;
+      const H = data.H;
+      const numVerts = W * H;
+
+      // Update HUD
+      document.getElementById('hudRes').innerText = `${W} x ${H}`;
+      document.getElementById('hudVerts').innerText = numVerts.toLocaleString();
+      document.getElementById('hudTris').innerText = ((W - 1) * (H - 1) * 2).toLocaleString();
+      document.getElementById('hudCompute').innerText = `${data.computeTime.toFixed(1)} ms`;
+
+      // Build Three.js Geometry
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(numVerts * 3);
+      const colors = new Float32Array(numVerts * 3);
+
+      const physicalWidth = 6.0; // 3D viewport span
+      const physicalLength = 6.0;
+      const stepX = physicalWidth / (W - 1);
+      const stepY = physicalLength / (H - 1);
+
+      for (let iy = 0; iy < H; iy++) {
+        for (let ix = 0; ix < W; ix++) {
+          const idx = iy * W + ix;
+          const posX = -physicalWidth / 2 + ix * stepX;
+          const posZ = -physicalLength / 2 + iy * stepY;
+          const posY = data.heights[idx];
+
+          positions[idx * 3] = posX;
+          positions[idx * 3 + 1] = posY;
+          positions[idx * 3 + 2] = posZ;
+
+          // Color calculation based on baseZ ratio
+          const baseZ = data.baseZVals[idx];
+          const color = samplePalette(paletteKey, baseZ);
+          colors[idx * 3] = color.r;
+          colors[idx * 3 + 1] = color.g;
+          colors[idx * 3 + 2] = color.b;
+        }
+      }
+
+      const numTris = (W - 1) * (H - 1) * 2;
+      const indices = new Uint32Array(numTris * 3);
+      let ptr = 0;
+
+      for (let iy = 0; iy < H - 1; iy++) {
+        for (let ix = 0; ix < W - 1; ix++) {
+          const a = iy * W + ix;
+          const b = iy * W + (ix + 1);
+          const c = (iy + 1) * W + ix;
+          const d = (iy + 1) * W + (ix + 1);
+
+          const hA = data.heights[a];
+          const hB = data.heights[b];
+          const hC = data.heights[c];
+          const hD = data.heights[d];
+
+          // Skip flat zero-height floor quads completely
+          if (hA <= 0.001 && hB <= 0.001 && hC <= 0.001 && hD <= 0.001) continue;
+
+          // 2 Triangles per quad (Counter-Clockwise winding facing +Y UPWARDS)
+          if (hA > 0.001 || hC > 0.001 || hD > 0.001) {
+            indices[ptr++] = a;
+            indices[ptr++] = c;
+            indices[ptr++] = d;
+          }
+          if (hA > 0.001 || hD > 0.001 || hB > 0.001) {
+            indices[ptr++] = a;
+            indices[ptr++] = d;
+            indices[ptr++] = b;
+          }
+        }
+      }
+
+      const activeIndices = indices.subarray(0, ptr);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setIndex(new THREE.BufferAttribute(activeIndices, 1));
+      geometry.computeVertexNormals();
+
+      // Clean up previous meshes
+      if (terrainMesh) scene.remove(terrainMesh);
+      if (wireframeMesh) scene.remove(wireframeMesh);
+
+      // Main Solid Material
+      const material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.3,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      });
+
+      terrainMesh = new THREE.Mesh(geometry, material);
+      terrainMesh.castShadow = true;
+      terrainMesh.receiveShadow = true;
+      scene.add(terrainMesh);
+
+      // Optional Wireframe Mesh
+      if (showWireframe) {
+        const wireGeo = new THREE.WireframeGeometry(geometry);
+        const wireMat = new THREE.LineBasicMaterial({ color: 0x00f2fe, opacity: 0.25, transparent: true });
+        wireframeMesh = new THREE.LineSegments(wireGeo, wireMat);
+        scene.add(wireframeMesh);
+      }
+
+      // Cache mesh reference and colors for histogram hover highlighting
+      window.currentMeshGeometry = geometry;
+      window.currentMeshBaseColors = new Float32Array(colors);
+      window.currentMeshHeights = data.heights;
+      window.currentMaxHeight = maxHeight;
+
+      // Render Live Height Distribution Histogram
+      drawHistogram(data.heights, data.baseZVals, maxHeight, paletteKey);
+
+      // Update 3D Orbit Trajectory Visuals
+      updateOrbitTrajectoryVisuals();
+    }
+
+    // Cache for histogram hover inspection
+    let currentHistData = null;
+
+    function highlight3DMeshBin(binIdx) {
+      if (!window.currentMeshGeometry || !window.currentMeshBaseColors || !window.currentMeshHeights) return;
+      const colorAttr = window.currentMeshGeometry.attributes.color;
+      const base = window.currentMeshBaseColors;
+      const heights = window.currentMeshHeights;
+      const maxH = window.currentMaxHeight;
+      const numVerts = heights.length;
+      const numBins = 36;
+
+      if (binIdx === null) {
+        for (let i = 0; i < numVerts; i++) {
+          colorAttr.setXYZ(i, base[i * 3], base[i * 3 + 1], base[i * 3 + 2]);
+        }
+      } else {
+        const binLow = (binIdx / numBins) * maxH;
+        const binHigh = ((binIdx + 1) / numBins) * maxH;
+
+        for (let i = 0; i < numVerts; i++) {
+          const h = heights[i];
+          if (h >= binLow && h < binHigh && h > 0.001) {
+            colorAttr.setXYZ(i, 0.2, 1.0, 1.0);
+          } else {
+            colorAttr.setXYZ(i, base[i * 3] * 0.35, base[i * 3 + 1] * 0.35, base[i * 3 + 2] * 0.35);
+          }
+        }
+      }
+      colorAttr.needsUpdate = true;
+    }
+
+    // --- 4b. HISTOGRAM CANVAS RENDERER ---
+    function drawHistogram(heights, baseZVals, maxHeight, paletteKey) {
+      const canvas = document.getElementById('histogramCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      const numBins = 36;
+      const counts = new Uint32Array(numBins);
+      let maxCount = 0;
+      let sum = 0;
+      let floorCount = 0;
+
+      const totalPoints = heights.length;
+      let activePointCount = 0;
+      for (let i = 0; i < totalPoints; i++) {
+        const val = heights[i];
+        if (val <= 0.001) {
+          floorCount++;
+          continue; // Exclude omitted zero floor values from histogram distribution!
+        }
+        sum += val;
+        activePointCount++;
+
+        const ratio = Math.max(0, Math.min(0.9999, maxHeight > 0 ? val / maxHeight : 0));
+        const bin = Math.floor(ratio * numBins);
+        counts[bin]++;
+        if (counts[bin] > maxCount) maxCount = counts[bin];
+      }
+
+      // Save for hover tooltip
+      currentHistData = { counts, numBins, totalPoints: activePointCount, maxHeight, paletteKey, maxCount };
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw Y-axis reference grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      for (let y = 15; y < h; y += 22) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Draw X-axis line at bottom
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
+      ctx.beginPath();
+      ctx.moveTo(0, h - 1);
+      ctx.lineTo(w, h - 1);
+      ctx.stroke();
+
+      // Draw histogram bars (X = Height, Y = Count of points)
+      const barWidth = w / numBins;
+      for (let i = 0; i < numBins; i++) {
+        const count = counts[i];
+        if (count === 0) continue;
+
+        // Logarithmic vertical height scaling so small peaks remain visible
+        const normalizedHeight = maxCount > 0 ? (Math.log(1 + count) / Math.log(1 + maxCount)) * (h - 10) : 0;
+        const bx = i * barWidth;
+        const by = h - normalizedHeight;
+
+        const t = i / (numBins - 1);
+        const color = samplePalette(paletteKey, t);
+        const colorStr = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+
+        ctx.fillStyle = colorStr;
+        ctx.fillRect(bx, by, Math.max(1, barWidth - 1), normalizedHeight);
+      }
+
+      // Update X-axis labels
+      document.getElementById('histMidLabel').innerText = `${(maxHeight / 2).toFixed(1)}`;
+      document.getElementById('histMaxLabel').innerText = `${maxHeight.toFixed(1)}`;
+
+      // Update text stats
+      const floorPct = ((floorCount / totalPoints) * 100).toFixed(1);
+      const meanH = activePointCount > 0 ? (sum / activePointCount).toFixed(2) : "0.00";
+      document.getElementById('histFloorPct').innerText = `${floorPct}%`;
+      document.getElementById('histMeanH').innerText = `${meanH}`;
+    }
+
+    // Attach Histogram Hover Inspector
+    const histCanvas = document.getElementById('histogramCanvas');
+    const histTooltip = document.getElementById('histTooltip');
+
+    if (histCanvas && histTooltip) {
+      histCanvas.addEventListener('mousemove', (e) => {
+        if (!currentHistData) return;
+        const rect = histCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const binWidth = rect.width / currentHistData.numBins;
+        const binIdx = Math.max(0, Math.min(currentHistData.numBins - 1, Math.floor(mouseX / binWidth)));
+
+        const binLow = (binIdx / currentHistData.numBins) * currentHistData.maxHeight;
+        const binHigh = ((binIdx + 1) / currentHistData.numBins) * currentHistData.maxHeight;
+        const count = currentHistData.counts[binIdx];
+        const pct = ((count / currentHistData.totalPoints) * 100).toFixed(1);
+
+        histTooltip.style.display = 'block';
+        histTooltip.style.left = `${Math.min(rect.width - 110, Math.max(0, mouseX - 50))}px`;
+        histTooltip.style.top = `${e.clientY - rect.top - 35}px`;
+        histTooltip.innerHTML = `Height: ${binLow.toFixed(2)}-${binHigh.toFixed(2)}<br>Points: ${count.toLocaleString()} (${pct}%)`;
+
+        // Highlight matching 3D mesh vertices in viewport
+        highlight3DMeshBin(binIdx);
+      });
+
+      histCanvas.addEventListener('mouseleave', () => {
+        histTooltip.style.display = 'none';
+        highlight3DMeshBin(null);
+      });
+    }
+
+    // --- 4c. 3D ORBIT TRAJECTORY INSPECTOR SYSTEM ---
+    const trajectoryGroup = new THREE.Group();
+    scene.add(trajectoryGroup);
+
+    let selectedSeed = { x0: -0.5, y0: 0.25 }; // Initial default z0 seed
+    let isSeedLocked = false;
+    let currentHoverSeed = { x0: -0.5, y0: 0.25 };
+
+    const trajRaycaster = new THREE.Raycaster();
+    const trajMouseVec = new THREE.Vector2();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    // =========================================================================
+    // 🎛️ TRAJECTORY SIZES & VISUAL SETTINGS (EDIT SIZES & REFLECTIVITY HERE)
+    // =========================================================================
+    const TRAJ_CONFIG = {
+      seedSphereRadius: 0.03,      // Size of z0 gold seed sphere (default: 0.11)
+      pointSphereRadius: 0.02,     // Size of intermediate trajectory spheres (default: 0.07)
+      escapedSphereRadius: 0.04,   // Size of escaped red trajectory spheres (default: 0.07)
+      metricSphereRadius: 0.03,    // Size of metric indicator sphere (default: 0.13)
+      arrowShaftRadius: 0.002,     // Thickness of 3D arrow shaft cylinder (default: 0.022)
+      arrowHeadRadius: 0.015,      // Radius of 3D arrowhead cone (default: 0.065)
+      arrowHeadLength: 0.05,       // Length of 3D arrowhead cone (default: 0.18)
+      metalness: 0.75,             // Metallic chrome reflectivity: 0.0 (plastic) to 1.0 (pure metal)
+      roughness: 0.10,             // Surface roughness: 0.0 (mirror gloss) to 1.0 (matte)
+      clearcoat: 1.0,              // Lacquer reflection layer: 0.0 to 1.0
+      clearcoatRoughness: 0.05,    // Glossiness of the clearcoat reflection
+      opacity: 0.42,               // Semi-transparency for spheres, lines, and 3D arrows (0.0 to 1.0)
+      transparent: true            // Enables alpha transparency
+    };
+
+    function updateOrbitTrajectoryVisuals() {
+      // 1. Clear previous 3D objects in trajectoryGroup
+      while (trajectoryGroup.children.length > 0) {
+        const obj = trajectoryGroup.children[0];
+        trajectoryGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      }
+
+      const activeSeed = isSeedLocked ? selectedSeed : currentHoverSeed;
+      const x0 = activeSeed.x0;
+      const y0 = activeSeed.y0;
+
+      const steps = parseInt(document.getElementById('pointStepsInput')?.value || document.getElementById('stepsInput')?.value || 2);
+      const maxHeight = parseFloat(document.getElementById('heightInput')?.value || 1.6);
+      const metricType = document.getElementById('metricSelect')?.value || 'finalMag';
+      const showEscaped = document.getElementById('showEscapedToggle')?.checked === true;
+
+      // 2. Trajectory Elevation: 5% higher than Max Height displayed
+      const Y_traj = maxHeight * 1.05 + 0.15;
+
+      // 3. Compute Orbit Trajectory Sequence: z0, z1, ..., zN
+      let zr = x0, zi = y0;
+      let orbitPts = [{ zr, zi, mag: Math.sqrt(zr * zr + zi * zi), step: 0, escaped: false }];
+
+      let isTrapped = true;
+      let escapeStep = -1;
+
+      for (let k = 0; k < steps; k++) {
+        const zrNext = x0 + (zr * zr - zi * zi);
+        const ziNext = y0 + (2.0 * zr * zi);
+        zr = zrNext;
+        zi = ziNext;
+        const mag = Math.sqrt(zr * zr + zi * zi);
+
+        const escaped = mag >= 2.0;
+        if (escaped && isTrapped) {
+          isTrapped = false;
+          escapeStep = k + 1;
+        }
+
+        orbitPts.push({ zr, zi, mag, step: k + 1, escaped });
+
+        if (escaped && !showEscaped) {
+          break; // Stop showing points after escape if showEscapedToggle is false!
+        }
+      }
+
+      // Map complex coordinates (zr, zi) to 3D world space (X = zr * 1.5, Z = -zi * 1.5, Y = Y_traj)
+      function toWorldPos(cZr, cZi) {
+        return new THREE.Vector3(cZr * 1.5, Y_traj, -cZi * 1.5);
+      }
+
+      // 3D Vector Arrow Builder (Cylinder Shaft + Cone Head with Transparency)
+      function create3DArrow(startPos, endPos, isEscaped) {
+        const arrowGroup = new THREE.Group();
+        const dir = new THREE.Vector3().subVectors(endPos, startPos);
+        const totalLen = dir.length();
+        if (totalLen < 0.01) return arrowGroup;
+
+        const headLen = Math.min(TRAJ_CONFIG.arrowHeadLength, totalLen * 0.4);
+        const shaftLen = Math.max(0.001, totalLen - headLen);
+        const headRadius = TRAJ_CONFIG.arrowHeadRadius;
+        const shaftRadius = TRAJ_CONFIG.arrowShaftRadius;
+
+        const colorHex = isEscaped ? 0xef4444 : 0x00f2fe;
+        const emissiveHex = isEscaped ? 0x551111 : 0x004466;
+
+        const arrowMat = new THREE.MeshPhysicalMaterial({
+          color: colorHex,
+          emissive: emissiveHex,
+          emissiveIntensity: 0.3,
+          metalness: TRAJ_CONFIG.metalness,
+          roughness: TRAJ_CONFIG.roughness,
+          clearcoat: TRAJ_CONFIG.clearcoat,
+          clearcoatRoughness: TRAJ_CONFIG.clearcoatRoughness,
+          transparent: TRAJ_CONFIG.transparent,
+          opacity: TRAJ_CONFIG.opacity
+        });
+
+        // Shaft Cylinder
+        const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 24);
+        shaftGeo.translate(0, shaftLen / 2, 0);
+        shaftGeo.rotateX(Math.PI / 2);
+        const shaftMesh = new THREE.Mesh(shaftGeo, arrowMat);
+        shaftMesh.position.copy(startPos);
+        shaftMesh.lookAt(endPos);
+        arrowGroup.add(shaftMesh);
+
+        // Head Cone
+        const headGeo = new THREE.ConeGeometry(headRadius, headLen, 24);
+        headGeo.translate(0, headLen / 2, 0);
+        headGeo.rotateX(Math.PI / 2);
+        const headMesh = new THREE.Mesh(headGeo, arrowMat);
+        const headPos = new THREE.Vector3().copy(startPos).add(dir.clone().normalize().multiplyScalar(shaftLen));
+        headMesh.position.copy(headPos);
+        headMesh.lookAt(endPos);
+        arrowGroup.add(headMesh);
+
+        return arrowGroup;
+      }
+
+      // 4. Render Orbit Points & High-Reflectivity Semi-Transparent Spheres
+      for (let i = 0; i < orbitPts.length; i++) {
+        const pt = orbitPts[i];
+        const pos = toWorldPos(pt.zr, pt.zi);
+
+        let colorHex = 0x00f2fe;
+        let emissiveHex = 0x005577;
+        let radius = TRAJ_CONFIG.pointSphereRadius;
+
+        if (i === 0) {
+          colorHex = 0xffd700; // Gold for z0
+          emissiveHex = 0x665500;
+          radius = TRAJ_CONFIG.seedSphereRadius;
+        } else if (pt.escaped) {
+          colorHex = 0xef4444; // Red for escaped points
+          emissiveHex = 0x661111;
+          radius = TRAJ_CONFIG.escapedSphereRadius;
+        }
+
+        // Highly Reflective Semi-Transparent Physical Sphere
+        const sphereGeo = new THREE.SphereGeometry(radius, 32, 32);
+        const sphereMat = new THREE.MeshPhysicalMaterial({
+          color: colorHex,
+          emissive: emissiveHex,
+          emissiveIntensity: 0.4,
+          metalness: TRAJ_CONFIG.metalness,
+          roughness: TRAJ_CONFIG.roughness,
+          clearcoat: TRAJ_CONFIG.clearcoat,
+          clearcoatRoughness: TRAJ_CONFIG.clearcoatRoughness,
+          transparent: TRAJ_CONFIG.transparent,
+          opacity: TRAJ_CONFIG.opacity
+        });
+        const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+        sphereMesh.position.copy(pos);
+        trajectoryGroup.add(sphereMesh);
+
+        // Vertical Guide Line from Bed Y=0 up to Y_traj for z0
+        if (i === 0) {
+          const lineGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(pos.x, 0, pos.z),
+            pos
+          ]);
+          const lineMat = new THREE.LineDashedMaterial({ color: 0xffd700, dashSize: 0.1, gapSize: 0.05, opacity: 0.5, transparent: true });
+          const lineMesh = new THREE.Line(lineGeo, lineMat);
+          lineMesh.computeLineDistances();
+          trajectoryGroup.add(lineMesh);
+
+          // Floor Ring Marker
+          const ringGeo = new THREE.RingGeometry(0.06, 0.09, 32);
+          ringGeo.rotateX(-Math.PI / 2);
+          const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.DoubleSide, opacity: 0.65, transparent: true });
+          const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+          ringMesh.position.set(pos.x, 0.01, pos.z);
+          trajectoryGroup.add(ringMesh);
+        }
+
+        // 3D Vector Arrow from P_i to P_{i+1}
+        if (i < orbitPts.length - 1) {
+          const nextPos = toWorldPos(orbitPts[i + 1].zr, orbitPts[i + 1].zi);
+          const arrowObj = create3DArrow(pos, nextPos, pt.escaped);
+          trajectoryGroup.add(arrowObj);
+        }
+      }
+
+      // 5. Render Metric Indicator Objects (Glowing Reflective Spheres & Rings)
+      let metricDetailText = "";
+      if (metricType === 'orbitCentroidDist' || metricType === 'orbitRadiusGyration') {
+        let sumX = 0, sumY = 0;
+        for (let pt of orbitPts) { sumX += pt.zr; sumY += pt.zi; }
+        const cX = sumX / orbitPts.length;
+        const cY = sumY / orbitPts.length;
+        const cPos = toWorldPos(cX, cY);
+
+        // Centroid Indicator Sphere (Glossy Metallic Magenta)
+        const cGeo = new THREE.SphereGeometry(TRAJ_CONFIG.metricSphereRadius, 32, 32);
+        const cMat = new THREE.MeshPhysicalMaterial({
+          color: 0xff007f,
+          emissive: 0x880044,
+          emissiveIntensity: 0.6,
+          metalness: TRAJ_CONFIG.metalness,
+          roughness: TRAJ_CONFIG.roughness,
+          clearcoat: TRAJ_CONFIG.clearcoat,
+          transparent: TRAJ_CONFIG.transparent,
+          opacity: TRAJ_CONFIG.opacity
+        });
+        const cMesh = new THREE.Mesh(cGeo, cMat);
+        cMesh.position.copy(cPos);
+        trajectoryGroup.add(cMesh);
+
+        // Line connecting z0 to Centroid
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([toWorldPos(x0, y0), cPos]);
+        const lineMat = new THREE.LineDashedMaterial({ color: 0xff007f, dashSize: 0.1, gapSize: 0.05, opacity: 0.6, transparent: true });
+        const lineMesh = new THREE.Line(lineGeo, lineMat);
+        lineMesh.computeLineDistances();
+        trajectoryGroup.add(lineMesh);
+
+        if (metricType === 'orbitRadiusGyration') {
+          // Radius of Gyration Circle
+          let sumSq = 0;
+          for (let pt of orbitPts) {
+            const dx = pt.zr - cX, dy = pt.zi - cY;
+            sumSq += (dx * dx + dy * dy);
+          }
+          const Rg = Math.sqrt(sumSq / orbitPts.length);
+          const circleGeo = new THREE.RingGeometry(Math.max(0.01, Rg * 1.5 - 0.02), Rg * 1.5 + 0.02, 64);
+          circleGeo.rotateX(-Math.PI / 2);
+          const circleMat = new THREE.MeshBasicMaterial({ color: 0xff007f, side: THREE.DoubleSide, opacity: 0.5, transparent: true });
+          const circleMesh = new THREE.Mesh(circleGeo, circleMat);
+          circleMesh.position.copy(cPos);
+          trajectoryGroup.add(circleMesh);
+
+          metricDetailText = `<b>Metric: Orbit Dispersion</b><br>Centroid: (${cX >= 0 ? '+' : ''}${cX.toFixed(3)}, ${cY >= 0 ? '+' : ''}${cY.toFixed(3)}i)<br>Radius of Gyration (R<sub>g</sub>): <b>${Rg.toFixed(4)}</b>`;
+        } else {
+          const distToC = Math.sqrt((x0 - cX) ** 2 + (y0 - cY) ** 2);
+          metricDetailText = `<b>Metric: Centroid Distance</b><br>Centroid: (${cX >= 0 ? '+' : ''}${cX.toFixed(3)}, ${cY >= 0 ? '+' : ''}${cY.toFixed(3)}i)<br>Dist z₀ to Centroid: <b>${distToC.toFixed(4)}</b>`;
+        }
+      } else if (metricType === 'maxExcursion') {
+        let maxP = orbitPts[0];
+        for (let pt of orbitPts) { if (pt.mag > maxP.mag) maxP = pt; }
+        const mPos = toWorldPos(maxP.zr, maxP.zi);
+
+        const mGeo = new THREE.SphereGeometry(TRAJ_CONFIG.metricSphereRadius, 32, 32);
+        const mMat = new THREE.MeshPhysicalMaterial({
+          color: 0xf97316,
+          emissive: 0x7c2d12,
+          emissiveIntensity: 0.6,
+          metalness: TRAJ_CONFIG.metalness,
+          roughness: TRAJ_CONFIG.roughness,
+          clearcoat: TRAJ_CONFIG.clearcoat,
+          transparent: TRAJ_CONFIG.transparent,
+          opacity: TRAJ_CONFIG.opacity
+        });
+        const mMesh = new THREE.Mesh(mGeo, mMat);
+        mMesh.position.copy(mPos);
+        trajectoryGroup.add(mMesh);
+
+        metricDetailText = `<b>Metric: Max Orbit Excursion</b><br>Peak Excursion Point: Step ${maxP.step}<br>Max Magnitude: <b>${maxP.mag.toFixed(4)}</b>`;
+      } else if (metricType === 'avgDistFromOrigin') {
+        let sumD = 0;
+        for (let pt of orbitPts) { sumD += Math.sqrt((pt.zr - x0) ** 2 + (pt.zi - y0) ** 2); }
+        const avgD = sumD / orbitPts.length;
+
+        const circleGeo = new THREE.RingGeometry(Math.max(0.01, avgD * 1.5 - 0.02), avgD * 1.5 + 0.02, 64);
+        circleGeo.rotateX(-Math.PI / 2);
+        const circleMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe, side: THREE.DoubleSide, opacity: 0.5, transparent: true });
+        const circleMesh = new THREE.Mesh(circleGeo, circleMat);
+        circleMesh.position.copy(toWorldPos(x0, y0));
+        trajectoryGroup.add(circleMesh);
+
+        metricDetailText = `<b>Metric: Avg Distance from z₀</b><br>Avg Orbit Spread: <b>${avgD.toFixed(4)}</b>`;
+      } else {
+        const lastPt = orbitPts[orbitPts.length - 1];
+        const lPos = toWorldPos(lastPt.zr, lastPt.zi);
+
+        const lGeo = new THREE.SphereGeometry(TRAJ_CONFIG.metricSphereRadius, 32, 32);
+        const lMat = new THREE.MeshPhysicalMaterial({
+          color: 0x10b981,
+          emissive: 0x064e3b,
+          emissiveIntensity: 0.6,
+          metalness: TRAJ_CONFIG.metalness,
+          roughness: TRAJ_CONFIG.roughness,
+          clearcoat: TRAJ_CONFIG.clearcoat,
+          transparent: TRAJ_CONFIG.transparent,
+          opacity: TRAJ_CONFIG.opacity
+        });
+        const lMesh = new THREE.Mesh(lGeo, lMat);
+        lMesh.position.copy(lPos);
+        trajectoryGroup.add(lMesh);
+
+        metricDetailText = `<b>Metric: Final Distance |z<sub>N</sub>|</b><br>Final Position at Step ${lastPt.step}<br>Final Magnitude: <b>${lastPt.mag.toFixed(4)}</b>`;
+      }
+
+      // 6. Update Floating UI Inspector Card
+      const card = document.getElementById('trajectoryCard');
+      if (card) {
+        card.style.display = 'block';
+        document.getElementById('trajSeedText').innerText = `z₀ = ${x0 >= 0 ? '+' : ''}${x0.toFixed(4)} ${y0 >= 0 ? '+' : ''}${y0.toFixed(4)}i`;
+
+        const badge = document.getElementById('trajStatusBadge');
+        if (isTrapped) {
+          badge.innerText = `Trapped (In Set)`;
+          badge.style.background = 'rgba(16,185,129,0.2)';
+          badge.style.color = '#10b981';
+          badge.style.borderColor = 'rgba(16,185,129,0.4)';
+        } else {
+          badge.innerText = `Escaped at Step ${escapeStep}`;
+          badge.style.background = 'rgba(239,68,68,0.2)';
+          badge.style.color = '#ef4444';
+          badge.style.borderColor = 'rgba(239,68,68,0.4)';
+        }
+
+        // Render Table Rows
+        const table = document.getElementById('trajTable');
+        let tableHtml = `<tr style="color:#94a3b8; border-bottom:1px solid rgba(255,255,255,0.1);"><th style="padding:2px 4px;">Step</th><th style="padding:2px 4px;">(Re, Im)</th><th style="padding:2px 4px;">|z|</th></tr>`;
+
+        for (let pt of orbitPts) {
+          const col = pt.step === 0 ? '#ffd700' : (pt.escaped ? '#ef4444' : '#e2e8f0');
+          tableHtml += `<tr style="color:${col};">
+            <td style="padding:2px 4px;">z<sub>${pt.step}</sub></td>
+            <td style="padding:2px 4px;">(${pt.zr >= 0 ? '+' : ''}${pt.zr.toFixed(3)}, ${pt.zi >= 0 ? '+' : ''}${pt.zi.toFixed(3)}i)</td>
+            <td style="padding:2px 4px;">${pt.mag.toFixed(3)}</td>
+          </tr>`;
+        }
+        table.innerHTML = tableHtml;
+        document.getElementById('trajMetricDetail').innerHTML = metricDetailText;
+      }
+    }
+
+    // Pointer Event Handlers for Clicking & Hovering on 3D Scene
+    let isPointerDown = false;
+    let pointerDownPos = { x: 0, y: 0 };
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isPointerDown = true;
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      const distMoved = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      isPointerDown = false;
+      if (distMoved > 5) return; // Ignore camera orbit dragging
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      trajMouseVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      trajMouseVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      trajRaycaster.setFromCamera(trajMouseVec, camera);
+
+      let targetPos = new THREE.Vector3();
+      let hit = false;
+
+      if (terrainMesh) {
+        const intersects = trajRaycaster.intersectObject(terrainMesh);
+        if (intersects.length > 0) {
+          targetPos.copy(intersects[0].point);
+          hit = true;
+        }
+      }
+
+      if (!hit) {
+        trajRaycaster.ray.intersectPlane(groundPlane, targetPos);
+        hit = true;
+      }
+
+      if (hit) {
+        const cX = Math.max(-2.0, Math.min(2.0, targetPos.x / 1.5));
+        const cY = Math.max(-2.0, Math.min(2.0, -targetPos.z / 1.5));
+
+        selectedSeed = { x0: cX, y0: cY };
+        isSeedLocked = true;
+        document.getElementById('clearTrajBtn').innerText = "Unlock ✕";
+        updateOrbitTrajectoryVisuals();
+      }
+    });
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (isPointerDown || isSeedLocked) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      trajMouseVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      trajMouseVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      trajRaycaster.setFromCamera(trajMouseVec, camera);
+
+      let targetPos = new THREE.Vector3();
+      let hit = false;
+
+      if (terrainMesh) {
+        const intersects = trajRaycaster.intersectObject(terrainMesh);
+        if (intersects.length > 0) {
+          targetPos.copy(intersects[0].point);
+          hit = true;
+        }
+      }
+
+      if (!hit) {
+        trajRaycaster.ray.intersectPlane(groundPlane, targetPos);
+        hit = true;
+      }
+
+      if (hit) {
+        const cX = Math.max(-2.0, Math.min(2.0, targetPos.x / 1.5));
+        const cY = Math.max(-2.0, Math.min(2.0, -targetPos.z / 1.5));
+
+        currentHoverSeed = { x0: cX, y0: cY };
+        updateOrbitTrajectoryVisuals();
+      }
+    });
+
+    document.getElementById('clearTrajBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isSeedLocked = false;
+      document.getElementById('clearTrajBtn').innerText = "Hovering";
+      updateOrbitTrajectoryVisuals();
+    });
+
+    document.getElementById('showEscapedToggle')?.addEventListener('change', () => {
+      updateOrbitTrajectoryVisuals();
+    });
+
+    // --- 5. WATERTIGHT 3D .OBJ EXPORTER ---
+    function exportWatertightOBJ() {
+      // Force high fidelity resolution (at least 400x400) for maximum SLA/FDM 3D printing detail
+      const userRes = parseInt(document.getElementById('resInput').value);
+      const resolution = Math.max(400, userRes);
+      const steps = parseInt(document.getElementById('stepsInput').value);
+      const maxHeight = parseFloat(document.getElementById('heightInput').value);
+      const baseThickness = parseFloat(document.getElementById('baseInput').value);
+      const dampType = document.getElementById('dampSelect').value;
+
+      showToast(`Generating High-Fidelity 3D Print Mesh (${resolution}x${resolution})...`);
+
+      const data = computeMandelbrot(resolution, steps, maxHeight, dampType);
+      const W = data.W;
+      const H = data.H;
+
+      const PHYSICAL_SIZE_MM = 120.0; // 120mm x 120mm 3D printing size footprint
+      const heightScaleMM = PHYSICAL_SIZE_MM / 6.0; // Scaled to 1-to-1 aspect ratio of viewport (20x multiplier)
+      const stepX = PHYSICAL_SIZE_MM / (W - 1);
+      const stepY = PHYSICAL_SIZE_MM / (H - 1);
+
+      let objLines = [];
+      objLines.push("# Watertight High-Fidelity Mandelbrot Complex Plane 3D Print Model\n");
+      objLines.push(`# Resolution: ${W}x${H}, Steps: ${steps}, MaxHeight: ${(maxHeight * heightScaleMM).toFixed(2)}mm, BaseThickness: ${(baseThickness * heightScaleMM).toFixed(2)}mm\n`);
+      objLines.push("o Mandelbrot_Terrain_Solid\n\n");
+
+      // 1. Top Surface Vertices (Indices 1 to W*H)
+      for (let iy = 0; iy < H; iy++) {
+        const posY = (H - 1 - iy) * stepY; // Match Y coordinates
+        for (let ix = 0; ix < W; ix++) {
+          const posX = ix * stepX;
+          const posZ = data.heights[iy * W + ix] * heightScaleMM;
+          objLines.push(`v ${posX.toFixed(4)} ${posY.toFixed(4)} ${posZ.toFixed(4)}\n`);
+        }
+      }
+
+      // 2. Base Floor Vertices (Indices W*H + 1 to 2*W*H)
+      const baseMM = baseThickness; // Direct physical base thickness in mm (e.g. 0.8mm, no giant 10mm pedestal!)
+      for (let iy = 0; iy < H; iy++) {
+        const posY = (H - 1 - iy) * stepY;
+        for (let ix = 0; ix < W; ix++) {
+          const posX = ix * stepX;
+          const posZ = -baseMM;
+          objLines.push(`v ${posX.toFixed(4)} ${posY.toFixed(4)} ${posZ.toFixed(4)}\n`);
+        }
+      }
+
+      objLines.push("\n# Faces\n");
+
+      // Index helpers
+      function topIdx(y, x) { return y * W + x + 1; }
+      function botIdx(y, x) { return W * H + y * W + x + 1; }
+
+      const unifiedBase = document.getElementById('unifiedBaseToggle')?.checked !== false;
+
+      // 1. Compute Active Grid & Connected Components
+      const isActiveGrid = new Uint8Array(W * H);
+      let totalActiveCount = 0;
+      for (let i = 0; i < W * H; i++) {
+        if (data.heights[i] > 0.001) {
+          isActiveGrid[i] = 1;
+          totalActiveCount++;
+        }
+      }
+
+      const isBaseGrid = new Uint8Array(W * H);
+      for (let i = 0; i < W * H; i++) isBaseGrid[i] = isActiveGrid[i];
+
+      if (unifiedBase && totalActiveCount > 0) {
+        // Connected Component Labeling (8-way flood fill)
+        const labels = new Int32Array(W * H);
+        const compSizes = new Map();
+        let currentLabel = 0;
+
+        for (let iy = 0; iy < H; iy++) {
+          for (let ix = 0; ix < W; ix++) {
+            const idx = iy * W + ix;
+            if (isActiveGrid[idx] && labels[idx] === 0) {
+              currentLabel++;
+              let qHead = 0;
+              const queue = [idx];
+              labels[idx] = currentLabel;
+              let size = 0;
+
+              while (qHead < queue.length) {
+                const cIdx = queue[qHead++];
+                size++;
+                const cy = Math.floor(cIdx / W);
+                const cx = cIdx % W;
+
+                for (let dy = -1; dy <= 1; dy++) {
+                  for (let dx = -1; dx <= 1; dx++) {
+                    if (dy === 0 && dx === 0) continue;
+                    const ny = cy + dy;
+                    const nx = cx + dx;
+                    if (ny >= 0 && ny < H && nx >= 0 && nx < W) {
+                      const nIdx = ny * W + nx;
+                      if (isActiveGrid[nIdx] && labels[nIdx] === 0) {
+                        labels[nIdx] = currentLabel;
+                        queue.push(nIdx);
+                      }
+                    }
+                  }
+                }
+              }
+              compSizes.set(currentLabel, size);
+            }
+          }
+        }
+
+        // Identify Main Body Component (largest cluster)
+        let mainLabel = 1;
+        let maxSize = 0;
+        compSizes.forEach((size, label) => {
+          if (size > maxSize) {
+            maxSize = size;
+            mainLabel = label;
+          }
+        });
+
+        // Multi-source BFS Distance Transform starting from Main Body
+        const dist = new Int32Array(W * H);
+        dist.fill(-1);
+        const parent = new Int32Array(W * H);
+        parent.fill(-1);
+
+        let qHead = 0;
+        const bfsQueue = [];
+
+        for (let i = 0; i < W * H; i++) {
+          if (labels[i] === mainLabel) {
+            dist[i] = 0;
+            bfsQueue.push(i);
+          }
+        }
+
+        while (qHead < bfsQueue.length) {
+          const cIdx = bfsQueue[qHead++];
+          const cDist = dist[cIdx];
+          const cy = Math.floor(cIdx / W);
+          const cx = cIdx % W;
+
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dy === 0 && dx === 0) continue;
+              const ny = cy + dy;
+              const nx = cx + dx;
+              if (ny >= 0 && ny < H && nx >= 0 && nx < W) {
+                const nIdx = ny * W + nx;
+                if (dist[nIdx] === -1) {
+                  dist[nIdx] = cDist + 1;
+                  parent[nIdx] = cIdx;
+                  bfsQueue.push(nIdx);
+                }
+              }
+            }
+          }
+        }
+
+        // Bridge disjoint satellite clusters directly to the main body (width ~ 1.5mm)
+        const bridgeRadius = Math.max(1, Math.round((0.8 / PHYSICAL_SIZE_MM) * (W - 1)));
+
+        compSizes.forEach((size, compId) => {
+          if (compId === mainLabel) return;
+
+          // Find closest point in this satellite cluster to the main body
+          let bestPt = -1;
+          let minDist = Infinity;
+          for (let i = 0; i < W * H; i++) {
+            if (labels[i] === compId && dist[i] < minDist && dist[i] >= 0) {
+              minDist = dist[i];
+              bestPt = i;
+            }
+          }
+
+          // Backtrack along parent trail to build bridge
+          let curr = bestPt;
+          while (curr !== -1 && labels[curr] !== mainLabel) {
+            const cy = Math.floor(curr / W);
+            const cx = curr % W;
+
+            for (let by = Math.max(0, cy - bridgeRadius); by <= Math.min(H - 1, cy + bridgeRadius); by++) {
+              for (let bx = Math.max(0, cx - bridgeRadius); bx <= Math.min(W - 1, cx + bridgeRadius); bx++) {
+                isBaseGrid[by * W + bx] = 1;
+              }
+            }
+            curr = parent[curr];
+          }
+        });
+      }
+
+      function isQuadInModel(y, x) {
+        if (y < 0 || y >= H - 1 || x < 0 || x >= W - 1) return false;
+        return (isBaseGrid[y * W + x] || isBaseGrid[y * W + (x + 1)] ||
+                isBaseGrid[(y + 1) * W + x] || isBaseGrid[(y + 1) * W + (x + 1)]) ? true : false;
+      }
+
+      // 3. Top & Bottom Faces (Watertight Manifold)
+      for (let iy = 0; iy < H - 1; iy++) {
+        for (let ix = 0; ix < W - 1; ix++) {
+          if (!isQuadInModel(iy, ix)) continue;
+
+          // Top Surface (Counter-Clockwise - facing upwards)
+          objLines.push(`f ${topIdx(iy, ix)} ${topIdx(iy, ix + 1)} ${topIdx(iy + 1, ix + 1)} ${topIdx(iy + 1, ix)}\n`);
+
+          // Bottom Surface (Clockwise - facing downwards)
+          objLines.push(`f ${botIdx(iy, ix)} ${botIdx(iy + 1, ix)} ${botIdx(iy + 1, ix + 1)} ${botIdx(iy, ix + 1)}\n`);
+        }
+      }
+
+      // 4. Perimeter Watertight Side Walls
+      for (let iy = 0; iy < H - 1; iy++) {
+        for (let ix = 0; ix < W - 1; ix++) {
+          if (!isQuadInModel(iy, ix)) continue;
+
+          // North Edge (iy - 1)
+          if (!isQuadInModel(iy - 1, ix)) {
+            objLines.push(`f ${topIdx(iy, ix + 1)} ${topIdx(iy, ix)} ${botIdx(iy, ix)} ${botIdx(iy, ix + 1)}\n`);
+          }
+          // South Edge (iy + 1)
+          if (!isQuadInModel(iy + 1, ix)) {
+            objLines.push(`f ${topIdx(iy + 1, ix)} ${topIdx(iy + 1, ix + 1)} ${botIdx(iy + 1, ix + 1)} ${botIdx(iy + 1, ix)}\n`);
+          }
+          // West Edge (ix - 1)
+          if (!isQuadInModel(iy, ix - 1)) {
+            objLines.push(`f ${topIdx(iy + 1, ix)} ${topIdx(iy, ix)} ${botIdx(iy, ix)} ${botIdx(iy + 1, ix)}\n`);
+          }
+          // East Edge (ix + 1)
+          if (!isQuadInModel(iy, ix + 1)) {
+            objLines.push(`f ${topIdx(iy, ix + 1)} ${topIdx(iy + 1, ix + 1)} ${botIdx(iy + 1, ix + 1)} ${botIdx(iy, ix + 1)}\n`);
+          }
+        }
+      }
+
+      // Trigger File Download
+      const blob = new Blob([objLines.join('')], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `mandelbrot_step_${steps}_res${W}x${H}.obj`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      showToast(`Exported Watertight OBJ: step_${steps}_res${W}x${H}.obj`);
+    }
+
+    // --- 6. PRESETS & EVENT LISTENERS ---
+    const PRESETS = {
+      step0: { steps: 0, res: 250, height: 3.7, base: 0.5, damp: 'linear', palette: 'magma' },
+      step1: { steps: 1, res: 250, height: 3.7, base: 0.5, damp: 'linear', palette: 'magma' },
+      step2: { steps: 2, res: 300, height: 3.7, base: 0.5, damp: 'linear', palette: 'cyberpunk' },
+      step3: { steps: 3, res: 350, height: 4.0, base: 0.5, damp: 'linear', palette: 'viridis' },
+      step7: { steps: 7, res: 400, height: 4.5, base: 0.6, damp: 'linear', palette: 'emerald' },
+      logPeak: { steps: 3, res: 300, height: 5.0, base: 0.5, damp: 'log', palette: 'solar' },
+      smoothFloor: { steps: 2, res: 300, height: 3.7, base: 0.5, damp: 'smoothstep', palette: 'magma' }
+    };
+
+    function calculateActiveFootprintWidth(heights, W, H, mode = 'shortest') {
+      if (mode === 'full') return 4.0;
+
+      let minX = W, maxX = 0;
+      let minY = H, maxY = 0;
+      let found = false;
+
+      for (let iy = 0; iy < H; iy++) {
+        for (let ix = 0; ix < W; ix++) {
+          if (heights[iy * W + ix] > 0.001) {
+            if (ix < minX) minX = ix;
+            if (ix > maxX) maxX = ix;
+            if (iy < minY) minY = iy;
+            if (iy > maxY) maxY = iy;
+            found = true;
+          }
+        }
+      }
+
+      if (!found || maxX <= minX || maxY <= minY) return 4.0;
+
+      const widthX = ((maxX - minX) / (W - 1)) * 4.0;
+      const widthY = ((maxY - minY) / (H - 1)) * 4.0;
+
+      switch (mode) {
+        case 'shortest':
+          return Math.min(widthX, widthY);
+        case 'longest':
+          return Math.max(widthX, widthY);
+        case 'average':
+          return (widthX + widthY) / 2.0;
+        default:
+          return Math.min(widthX, widthY);
+      }
+    }
+
+    function applyGoldenRatioHeight() {
+      const resolution = parseInt(document.getElementById('resInput').value);
+      const steps = parseInt(document.getElementById('stepsInput').value);
+      const dampType = document.getElementById('dampSelect').value;
+      const goldenMode = document.getElementById('goldenModeSelect')?.value || 'shortest';
+
+      const data = computeMandelbrot(resolution, steps, 1.0, dampType);
+      const activeWidth = calculateActiveFootprintWidth(data.heights, data.W, data.H, goldenMode);
+      const goldenHeight = Math.max(0.4, Math.min(8.0, activeWidth * 0.61803398875));
+
+      document.getElementById('heightInput').value = goldenHeight.toFixed(1);
+      syncInputBadges();
+      updateTerrainMesh();
+      showToast(`Golden Ratio Height: ${goldenHeight.toFixed(1)} (${goldenMode} footprint: ${activeWidth.toFixed(2)})`);
+    }
+
+    function loadPreset(key) {
+      if (!PRESETS[key]) return;
+      const p = PRESETS[key];
+      document.getElementById('stepsInput').value = p.steps;
+      document.getElementById('pointStepsInput').value = p.steps;
+      document.getElementById('resInput').value = p.res;
+      document.getElementById('baseInput').value = p.base;
+      document.getElementById('dampSelect').value = p.damp;
+      document.getElementById('paletteSelect').value = p.palette;
+
+      const goldenMode = document.getElementById('goldenModeSelect')?.value || 'shortest';
+      const data = computeMandelbrot(p.res, p.steps, 1.0, p.damp);
+      const activeWidth = calculateActiveFootprintWidth(data.heights, data.W, data.H, goldenMode);
+      const goldenHeight = Math.max(0.4, Math.min(8.0, activeWidth * 0.61803398875));
+      document.getElementById('heightInput').value = goldenHeight.toFixed(1);
+
+      syncInputBadges();
+      updateTerrainMesh();
+    }
+
+    function syncInputBadges() {
+      document.getElementById('stepsVal').innerText = document.getElementById('stepsInput').value;
+      document.getElementById('pointStepsVal').innerText = document.getElementById('pointStepsInput').value;
+      const r = document.getElementById('resInput').value;
+      document.getElementById('resVal').innerText = `${r} x ${r}`;
+      document.getElementById('heightVal').innerText = parseFloat(document.getElementById('heightInput').value).toFixed(1);
+      document.getElementById('baseVal').innerText = parseFloat(document.getElementById('baseInput').value).toFixed(1);
+      document.getElementById('blurVal').innerText = `${document.getElementById('blurInput').value} Passes`;
+      document.getElementById('slopeAngleVal').innerText = `${document.getElementById('slopeAngleInput').value}°`;
+    }
+
+    // --- 8. SETTINGS PERSISTENCE ACROSS TABS (LOCALSTORAGE) ---
+    function saveMandelbrotState() {
+      try {
+        const state = {
+          steps: document.getElementById('stepsInput').value,
+          pointSteps: document.getElementById('pointStepsInput').value,
+          res: document.getElementById('resInput').value,
+          height: document.getElementById('heightInput').value,
+          base: document.getElementById('baseInput').value,
+          blur: document.getElementById('blurInput').value,
+          slopeAngle: document.getElementById('slopeAngleInput').value,
+          goldenMode: document.getElementById('goldenModeSelect')?.value,
+          metric: document.getElementById('metricSelect')?.value,
+          cliffSoftener: document.getElementById('cliffSoftenerSelect')?.value,
+          slopeMode: document.getElementById('slopeModeSelect')?.value,
+          unifiedBase: document.getElementById('unifiedBaseToggle')?.checked,
+          damp: document.getElementById('dampSelect')?.value,
+          palette: document.getElementById('paletteSelect')?.value,
+          wireframe: document.getElementById('wireframeToggle')?.checked,
+          showEscaped: document.getElementById('showEscapedToggle')?.checked,
+          autoRotate: document.getElementById('autoRotateToggle')?.checked,
+          selectedSeed: typeof selectedSeed !== 'undefined' ? selectedSeed : null,
+          isSeedLocked: typeof isSeedLocked !== 'undefined' ? isSeedLocked : false,
+          camPos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+          camTarget: { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+        };
+        localStorage.setItem('mandelbrot_saved_state', JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function loadMandelbrotState() {
+      try {
+        const saved = localStorage.getItem('mandelbrot_saved_state');
+        if (!saved) return false;
+        const s = JSON.parse(saved);
+        if (s.steps !== undefined) document.getElementById('stepsInput').value = s.steps;
+        if (s.pointSteps !== undefined) document.getElementById('pointStepsInput').value = s.pointSteps;
+        if (s.res !== undefined) document.getElementById('resInput').value = s.res;
+        if (s.height !== undefined) document.getElementById('heightInput').value = s.height;
+        if (s.base !== undefined) document.getElementById('baseInput').value = s.base;
+        if (s.blur !== undefined) document.getElementById('blurInput').value = s.blur;
+        if (s.slopeAngle !== undefined) document.getElementById('slopeAngleInput').value = s.slopeAngle;
+        if (s.goldenMode !== undefined && document.getElementById('goldenModeSelect')) document.getElementById('goldenModeSelect').value = s.goldenMode;
+        if (s.metric !== undefined && document.getElementById('metricSelect')) document.getElementById('metricSelect').value = s.metric;
+        if (s.cliffSoftener !== undefined && document.getElementById('cliffSoftenerSelect')) document.getElementById('cliffSoftenerSelect').value = s.cliffSoftener;
+        if (s.slopeMode !== undefined && document.getElementById('slopeModeSelect')) document.getElementById('slopeModeSelect').value = s.slopeMode;
+        if (s.unifiedBase !== undefined && document.getElementById('unifiedBaseToggle')) document.getElementById('unifiedBaseToggle').checked = s.unifiedBase;
+        if (s.damp !== undefined && document.getElementById('dampSelect')) document.getElementById('dampSelect').value = s.damp;
+        if (s.palette !== undefined && document.getElementById('paletteSelect')) document.getElementById('paletteSelect').value = s.palette;
+        if (s.wireframe !== undefined && document.getElementById('wireframeToggle')) document.getElementById('wireframeToggle').checked = s.wireframe;
+        if (s.showEscaped !== undefined && document.getElementById('showEscapedToggle')) document.getElementById('showEscapedToggle').checked = s.showEscaped;
+        if (s.autoRotate !== undefined && document.getElementById('autoRotateToggle')) document.getElementById('autoRotateToggle').checked = s.autoRotate;
+        if (s.selectedSeed && typeof selectedSeed !== 'undefined') {
+          selectedSeed = s.selectedSeed;
+          isSeedLocked = s.isSeedLocked;
+        }
+        if (s.camPos) camera.position.set(s.camPos.x, s.camPos.y, s.camPos.z);
+        if (s.camTarget) controls.target.set(s.camTarget.x, s.camTarget.y, s.camTarget.z);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Input listeners with debounce for performance & auto-save
+    let updateTimeout;
+    function scheduleMeshUpdate(e) {
+      if (e && e.target && e.target.id === 'stepsInput') {
+        // Automatically synchronize Point Steps when main Steps slider updates
+        document.getElementById('pointStepsInput').value = document.getElementById('stepsInput').value;
+      }
+      syncInputBadges();
+      saveMandelbrotState();
+      clearTimeout(updateTimeout);
+      updateTimeout = setTimeout(updateTerrainMesh, 40);
+    }
+
+    ['stepsInput', 'resInput', 'heightInput', 'baseInput', 'blurInput', 'slopeAngleInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', scheduleMeshUpdate);
+    });
+
+    // Independent Point Steps (Future Projection) slider listener
+    document.getElementById('pointStepsInput').addEventListener('input', () => {
+      document.getElementById('pointStepsVal').innerText = document.getElementById('pointStepsInput').value;
+      saveMandelbrotState();
+      updateOrbitTrajectoryVisuals();
+    });
+
+    ['dampSelect', 'paletteSelect', 'wireframeToggle', 'metricSelect', 'slopeModeSelect', 'goldenModeSelect', 'cliffSoftenerSelect', 'unifiedBaseToggle', 'showEscapedToggle'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        saveMandelbrotState();
+        updateTerrainMesh();
+      });
+    });
+
+    document.getElementById('presetSelect').addEventListener('change', (e) => {
+      loadPreset(e.target.value);
+    });
+
+    document.getElementById('autoGoldenBtn').addEventListener('click', applyGoldenRatioHeight);
+    document.getElementById('exportObjBtn').addEventListener('click', exportWatertightOBJ);
+
+    document.getElementById('resetCamBtn').addEventListener('click', () => {
+      camera.position.copy(initialCamPos);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      saveMandelbrotState();
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    // --- 7. HOVER INSPECTION TOOLTIP ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const tooltip = document.getElementById('hover-tooltip');
+
+    window.addEventListener('pointermove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      if (terrainMesh) {
+        const intersects = raycaster.intersectObject(terrainMesh);
+        if (intersects.length > 0) {
+          const pt = intersects[0].point;
+          // Map physical posX, posZ back to complex plane x + iy
+          const cx = (pt.x / 6.0) * 4.0;
+          const cy = (-pt.z / 6.0) * 4.0;
+          tooltip.style.display = 'block';
+          tooltip.style.left = `${e.clientX + 15}px`;
+          tooltip.style.top = `${e.clientY + 15}px`;
+          tooltip.innerHTML = `z₀ = ${cx.toFixed(3)} ${cy >= 0 ? '+' : ''}${cy.toFixed(3)}i<br>Height: ${pt.y.toFixed(3)}`;
+        } else {
+          tooltip.style.display = 'none';
+        }
+      }
+    });
+
+    // --- 8. ANIMATION LOOP & FPS COUNTER ---
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      // Optional Auto-Rotate
+      if (document.getElementById('autoRotateToggle').checked) {
+        if (terrainMesh) terrainMesh.rotation.y += 0.003;
+        if (wireframeMesh) wireframeMesh.rotation.y += 0.003;
+      } else {
+        if (terrainMesh) terrainMesh.rotation.y = 0;
+        if (wireframeMesh) wireframeMesh.rotation.y = 0;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+
+      // FPS update
+      frameCount++;
+      if (now - lastFpsTime >= 1000) {
+        document.getElementById('hudFps').innerText = frameCount;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+    }
+
+    // Handle Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('beforeunload', saveMandelbrotState);
+    controls.addEventListener('end', saveMandelbrotState);
+
+    // Initial Render & State Restoration
+    loadMandelbrotState();
+    syncInputBadges();
+    updateTerrainMesh();
+    animate(performance.now());
+  </script>
+</body>
+
+</html>
