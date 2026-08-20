@@ -793,7 +793,23 @@
       Export Watertight .OBJ
     </button>
 
-    <button id="resetCamBtn" class="btn btn-secondary">
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="loadObjBtn" class="btn btn-secondary" style="flex:1;" title="Load an .OBJ or .JSON file to recreate the exact 3D model & settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        📂 Load .OBJ / Config
+      </button>
+      <input type="file" id="loadFileInput" accept=".obj,.json" style="display:none;">
+
+      <button id="saveConfigBtn" class="btn btn-secondary" style="flex:1;" title="Save lightweight JSON configuration">
+        💾 Save Config
+      </button>
+    </div>
+
+    <button id="resetCamBtn" class="btn btn-secondary" style="margin-top:8px;">
       Reset Camera View
     </button>
   </div>
@@ -2074,7 +2090,7 @@
       updateOrbitTrajectoryVisuals();
     });
 
-    // --- 5. WATERTIGHT 3D .OBJ EXPORTER ---
+    // --- 5. WATERTIGHT 3D .OBJ EXPORTER WITH EMBEDDED CONFIG METADATA ---
     function exportWatertightOBJ() {
       // Force high fidelity resolution (at least 400x400) for maximum SLA/FDM 3D printing detail
       const userRes = parseInt(document.getElementById('resInput').value);
@@ -2095,8 +2111,29 @@
       const stepX = PHYSICAL_SIZE_MM / (W - 1);
       const stepY = PHYSICAL_SIZE_MM / (H - 1);
 
+      const unifiedBase = document.getElementById('unifiedBaseToggle')?.checked !== false;
+
+      // Stable configuration metadata object
+      const config = {
+        v: 1,
+        steps: steps,
+        res: W,
+        height: maxHeight,
+        base: baseThickness,
+        metric: document.getElementById('metricSelect')?.value || 'finalMag',
+        cliff: document.getElementById('cliffSoftenerSelect')?.value || 'smooth',
+        slopeMode: document.getElementById('slopeModeSelect')?.value || 'none',
+        slopeAngle: parseFloat(document.getElementById('slopeAngleInput')?.value || 45),
+        blur: parseInt(document.getElementById('blurInput')?.value || 0),
+        damp: dampType,
+        palette: document.getElementById('paletteSelect')?.value || 'magma',
+        unifiedBase: unifiedBase
+      };
+      const configJSON = JSON.stringify(config);
+
       let objLines = [];
       objLines.push("# Watertight High-Fidelity Mandelbrot Complex Plane 3D Print Model\n");
+      objLines.push(`# MANDELBROT_SETTINGS_JSON: ${configJSON}\n`);
       objLines.push(`# Resolution: ${W}x${H}, Steps: ${steps}, MaxHeight: ${(maxHeight * heightScaleMM).toFixed(2)}mm, BaseThickness: ${(baseThickness * heightScaleMM).toFixed(2)}mm\n`);
       objLines.push("o Mandelbrot_Terrain_Solid\n\n");
 
@@ -2126,8 +2163,6 @@
       // Index helpers
       function topIdx(y, x) { return y * W + x + 1; }
       function botIdx(y, x) { return W * H + y * W + x + 1; }
-
-      const unifiedBase = document.getElementById('unifiedBaseToggle')?.checked !== false;
 
       // 1. Compute Active Grid & Connected Components
       const isActiveGrid = new Uint8Array(W * H);
@@ -2308,18 +2343,147 @@
         }
       }
 
-      // Trigger File Download
+      // Trigger File Download with Stable Parametric Filename
       const blob = new Blob([objLines.join('')], { type: 'text/plain' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `mandelbrot_step_${steps}_res${W}x${H}.obj`;
+      const filename = `mandelbrot_s${steps}_r${W}_h${maxHeight.toFixed(1)}_b${baseThickness.toFixed(1)}_m-${config.metric}_sl-${config.slopeMode}_a${config.slopeAngle}_bl${config.blur}_d-${dampType}.obj`;
+      link.download = filename;
       link.click();
       URL.revokeObjectURL(link.href);
 
-      showToast(`Exported Watertight OBJ: step_${steps}_res${W}x${H}.obj`);
+      showToast(`Exported: ${filename}`);
     }
 
-    // --- 6. PRESETS & EVENT LISTENERS ---
+    // --- 6. MODEL & CONFIG LOADER (RECREATE FROM FILE) ---
+    function applyMandelbrotConfig(config, sourceName = 'file') {
+      if (!config) return false;
+
+      if (config.steps !== undefined) {
+        document.getElementById('stepsInput').value = config.steps;
+        document.getElementById('pointStepsInput').value = config.steps;
+      }
+      if (config.res !== undefined) document.getElementById('resInput').value = config.res;
+      if (config.height !== undefined) document.getElementById('heightInput').value = config.height;
+      if (config.base !== undefined) document.getElementById('baseInput').value = config.base;
+      if (config.metric !== undefined && document.getElementById('metricSelect')) document.getElementById('metricSelect').value = config.metric;
+      if (config.cliff !== undefined && document.getElementById('cliffSoftenerSelect')) document.getElementById('cliffSoftenerSelect').value = config.cliff;
+      if (config.slopeMode !== undefined && document.getElementById('slopeModeSelect')) document.getElementById('slopeModeSelect').value = config.slopeMode;
+      if (config.slopeAngle !== undefined && document.getElementById('slopeAngleInput')) document.getElementById('slopeAngleInput').value = config.slopeAngle;
+      if (config.blur !== undefined && document.getElementById('blurInput')) document.getElementById('blurInput').value = config.blur;
+      if (config.damp !== undefined && document.getElementById('dampSelect')) document.getElementById('dampSelect').value = config.damp;
+      if (config.palette !== undefined && document.getElementById('paletteSelect')) document.getElementById('paletteSelect').value = config.palette;
+      if (config.unifiedBase !== undefined && document.getElementById('unifiedBaseToggle')) document.getElementById('unifiedBaseToggle').checked = config.unifiedBase;
+
+      syncInputBadges();
+      updateTerrainMesh();
+      saveMandelbrotState();
+      showToast(`✨ Re-created model from ${sourceName} (Steps ${config.steps || '?'}, Res ${config.res || '?'})`);
+      return true;
+    }
+
+    function parseConfigFileOrText(text, filename = '') {
+      try {
+        // 1. Check for Embedded JSON Comment in OBJ Header
+        const jsonMatch = text.match(/#\s*MANDELBROT_SETTINGS_JSON:\s*(\{.*\})/);
+        if (jsonMatch && jsonMatch[1]) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          return applyMandelbrotConfig(parsed, filename || 'OBJ Header');
+        }
+
+        // 2. Check if whole text is pure JSON config
+        if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
+          const parsed = JSON.parse(text);
+          return applyMandelbrotConfig(parsed, filename || 'JSON Config');
+        }
+
+        // 3. Fallback: Parse from Filename regex
+        if (filename) {
+          const fnMatch = filename.match(/mandelbrot_s(\d+)_r(\d+)_h([0-9.]+)_b([0-9.]+)_m-([a-zA-Z0-9]+)_sl-([a-zA-Z0-9]+)_a(\d+)_bl(\d+)_d-([a-zA-Z0-9]+)/);
+          if (fnMatch) {
+            const parsed = {
+              steps: parseInt(fnMatch[1]),
+              res: parseInt(fnMatch[2]),
+              height: parseFloat(fnMatch[3]),
+              base: parseFloat(fnMatch[4]),
+              metric: fnMatch[5],
+              slopeMode: fnMatch[6],
+              slopeAngle: parseInt(fnMatch[7]),
+              blur: parseInt(fnMatch[8]),
+              damp: fnMatch[9]
+            };
+            return applyMandelbrotConfig(parsed, filename);
+          }
+        }
+
+        showToast("⚠️ Could not find settings metadata in file");
+        return false;
+      } catch (err) {
+        showToast(`❌ Error loading file: ${err.message}`);
+        return false;
+      }
+    }
+
+    function saveConfigFile() {
+      const steps = parseInt(document.getElementById('stepsInput').value);
+      const res = parseInt(document.getElementById('resInput').value);
+      const config = {
+        v: 1,
+        steps: steps,
+        res: res,
+        height: parseFloat(document.getElementById('heightInput').value),
+        base: parseFloat(document.getElementById('baseInput').value),
+        metric: document.getElementById('metricSelect')?.value || 'finalMag',
+        cliff: document.getElementById('cliffSoftenerSelect')?.value || 'smooth',
+        slopeMode: document.getElementById('slopeModeSelect')?.value || 'none',
+        slopeAngle: parseFloat(document.getElementById('slopeAngleInput')?.value || 45),
+        blur: parseInt(document.getElementById('blurInput')?.value || 0),
+        damp: document.getElementById('dampSelect')?.value || 'linear',
+        palette: document.getElementById('paletteSelect')?.value || 'magma',
+        unifiedBase: document.getElementById('unifiedBaseToggle')?.checked !== false
+      };
+
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const filename = `mandelbrot_config_s${steps}_r${res}.json`;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast(`Saved Config: ${filename}`);
+    }
+
+    // Connect Load & Save Config Buttons
+    const loadFileInput = document.getElementById('loadFileInput');
+    document.getElementById('loadObjBtn')?.addEventListener('click', () => loadFileInput.click());
+    document.getElementById('saveConfigBtn')?.addEventListener('click', saveConfigFile);
+
+    loadFileInput?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        parseConfigFileOrText(evt.target.result, file.name);
+      };
+      reader.readAsText(file);
+      loadFileInput.value = '';
+    });
+
+    // Global Drag & Drop onto 3D Viewport
+    window.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          parseConfigFileOrText(evt.target.result, file.name);
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    // --- 7. PRESETS & EVENT LISTENERS ---
     const PRESETS = {
       step0: { steps: 0, res: 250, height: 3.7, base: 0.5, damp: 'linear', palette: 'magma' },
       step1: { steps: 1, res: 250, height: 3.7, base: 0.5, damp: 'linear', palette: 'magma' },
